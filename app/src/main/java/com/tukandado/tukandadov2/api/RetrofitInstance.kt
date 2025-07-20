@@ -16,7 +16,7 @@ object RetrofitInstance {
                 .build()
 
             retrofit = Retrofit.Builder()
-                .baseUrl("http://10.0.2.2:3000/api/")
+                .baseUrl("https://tukandado-backend.onrender.com/api/")
                 .addConverterFactory(GsonConverterFactory.create())
                 .client(client)
                 .build()

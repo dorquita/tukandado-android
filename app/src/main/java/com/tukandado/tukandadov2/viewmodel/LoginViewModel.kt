@@ -27,6 +27,7 @@ class LoginViewModel : ViewModel() {
                 val api = RetrofitInstance.getAuthApi(context)
                 val response = api.login(LoginRequest(email, password))
 
+                Log.d("LoginViewModel", "Respuesta asecas: $response")
                 Log.d("LoginViewModel", "Respuesta HTTP: ${response.code()}")
 
                 val user = response.body()

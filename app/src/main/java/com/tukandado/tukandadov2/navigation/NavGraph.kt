@@ -22,7 +22,7 @@ fun NavGraph(navController: NavHostController, startDestination: String = "login
             )
         }
         composable(Screen.Home.route) {
-            HomeScreen(navController)
+            OpenLockScreen(navController)
         }
         composable(Screen.Locks.route) {
             OpenLockScreen(navController)

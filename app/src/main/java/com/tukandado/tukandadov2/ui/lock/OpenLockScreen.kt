@@ -14,7 +14,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.tukandado.tukandadov2.ttlock.TTLockManager
 import com.tukandado.tukandadov2.viewmodel.LockViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -29,7 +28,7 @@ fun OpenLockScreen(navController: NavController) {
     var selectedLockName by remember { mutableStateOf<String?>(null) }
     var showDialog by remember { mutableStateOf(false) }
 
-    // Carga los candados al iniciar
+    // Cargar candados al inicio
     LaunchedEffect(Unit) {
         lockViewModel.getAllLocks(context)
     }
@@ -69,7 +68,6 @@ fun OpenLockScreen(navController: NavController) {
         }
     }
 
-    // Diálogo para confirmar apertura
     if (showDialog && selectedLockName != null) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -81,20 +79,18 @@ fun OpenLockScreen(navController: NavController) {
                     Toast.makeText(context, "🔓 Abriendo candado...", Toast.LENGTH_SHORT).show()
 
                     coroutineScope.launch {
-                        // Encuentra el lock seleccionado
-
                         val selectedLock = locks.firstOrNull { it.lockName == selectedLockName }
 
                         if (selectedLock != null) {
-                            // ⚠️ Suponiendo que tienes `lockDataJson` y `macAddress` guardados en tu modelo LockResponse
-                            val lockDataJson = selectedLock.lockData  // <-- Usa aquí el campo correcto si lo tienes (mock o real)
-                            val macAddress = selectedLock.lockMac     // <-- o el campo que tengas para la dirección MAC
-
-                            ttLockManager.controlLock(
-                                lockDataJson = lockDataJson,
-                                lockMac = macAddress,
-                                isOpen = true
-                            )
+                            try {
+                                ttLockManager.controlLock(
+                                    lockDataJson = selectedLock.lockData,
+                                    lockMac = selectedLock.lockMac,
+                                    isOpen = true
+                                )
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Error al abrir el candado: ${e.message}", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             Toast.makeText(context, "No se encontró el candado en la lista", Toast.LENGTH_SHORT).show()
                         }
@@ -103,7 +99,7 @@ fun OpenLockScreen(navController: NavController) {
                     Text("Sí")
                 }
             },
-                    dismissButton = {
+            dismissButton = {
                 TextButton(onClick = { showDialog = false }) {
                     Text("Cancelar")
                 }
