@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tukandado.tukandadov2.api.LoginRequest
+import com.tukandado.tukandadov2.api.LoginResponse
 import com.tukandado.tukandadov2.api.RetrofitInstance
 import com.tukandado.tukandadov2.data.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,9 @@ class LoginViewModel : ViewModel() {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
+
+    private val _userData = MutableStateFlow<LoginResponse?>(null)
+    val userData: StateFlow<LoginResponse?> = _userData
 
     fun login(context: Context, email: String, password: String) {
         viewModelScope.launch {
@@ -53,6 +57,8 @@ class LoginViewModel : ViewModel() {
                     SessionManager(context).saveUserEmail(user.email)
                     SessionManager(context).saveRole(user.role)
                     SessionManager(context).saveTokens(accessToken, refreshToken)
+
+                    _userData.value = user
                     _loginSuccess.value = true
                     Log.d("LoginViewModel", "Login correcto, sesión guardada.")
                 } else {

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.gson.Gson
+import com.tukandado.tukandadov2.api.ActiveBooking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -16,6 +18,7 @@ class SessionManager(private val context: Context) {
         private val ROLE_KEY = stringPreferencesKey("role_key")
         private val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
         private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
+        private val ACTIVE_BOOKING_KEY = stringPreferencesKey("active_booking")
     }
 
     suspend fun saveRole(role: String) {
@@ -51,5 +54,30 @@ class SessionManager(private val context: Context) {
 
     suspend fun clearSession() {
         context.dataStore.edit { it.clear() }
+    }
+
+    // --------------------------
+    // Booking session persistence
+    // --------------------------
+
+    suspend fun saveActiveBooking(booking: ActiveBooking) {
+        val json = Gson().toJson(booking)
+        context.dataStore.edit { prefs ->
+            prefs[ACTIVE_BOOKING_KEY] = json
+        }
+    }
+
+    suspend fun clearActiveBooking() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(ACTIVE_BOOKING_KEY)
+        }
+    }
+
+    fun getActiveBooking(): Flow<ActiveBooking?> {
+        return context.dataStore.data.map { prefs ->
+            prefs[ACTIVE_BOOKING_KEY]?.let {
+                Gson().fromJson(it, ActiveBooking::class.java)
+            }
+        }
     }
 }

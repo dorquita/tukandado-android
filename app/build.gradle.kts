@@ -56,6 +56,8 @@ dependencies {
 
     implementation("com.ttlock:ttlock:3.5.4")
 
+    implementation("androidx.compose.foundation:foundation:1.5.0")
+
     implementation(libs.datastore)
 
     testImplementation(libs.junit)

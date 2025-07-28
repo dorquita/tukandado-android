@@ -9,6 +9,7 @@ import com.tukandado.tukandadov2.api.RetrofitInstance
 import com.tukandado.tukandadov2.data.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class LockViewModel : ViewModel() {
@@ -25,8 +26,9 @@ class LockViewModel : ViewModel() {
     fun getAllLocks(context: Context) {
         viewModelScope.launch {
             try {
+                val userEmail = SessionManager(context).getUserEmail().first()
                 val api = RetrofitInstance.getLockApi(context)
-                val response = api.getAllLocks()
+                val response = api.getAllLocksByUser(userEmail!!)
 
                 if (response.isSuccessful) {
                     _locks.value = response.body() ?: emptyList()

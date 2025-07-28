@@ -3,7 +3,6 @@ package com.tukandado.tukandadov2
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -24,7 +23,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 👇 Solicita permisos de Bluetooth en Android 12+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val permissionsToRequest = mutableListOf<String>()
 

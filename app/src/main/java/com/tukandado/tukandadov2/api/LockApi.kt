@@ -28,6 +28,9 @@ interface LockApi {
     @GET("locks/club/{clubId}")
     suspend fun getAllLocksByClub(@Path("clubId") id: String): Response<List<LockResponse>>
 
+    @GET("locks/user/{userEmail}")
+    suspend fun getAllLocksByUser(@Path("userEmail") userEmail: String): Response<List<LockResponse>>
+
     @GET("locks/club/{clubId}/available")
     suspend fun getAllLocksByClubAvailable(@Path("clubId") id: String): Response<List<LockResponse>>
 

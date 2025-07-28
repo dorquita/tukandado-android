@@ -16,7 +16,7 @@ object RetrofitInstance {
                 .build()
 
             retrofit = Retrofit.Builder()
-                .baseUrl("https://tukandado-backend.onrender.com/api/")
+                .baseUrl("http://10.0.2.2:3000/api/")
                 .addConverterFactory(GsonConverterFactory.create())
                 .client(client)
                 .build()
@@ -31,4 +31,6 @@ object RetrofitInstance {
     fun getAuthApi(context: Context): AuthApi = createApi(context, AuthApi::class.java)
     fun getClubApi(context: Context): ClubApi = createApi(context, ClubApi::class.java)
     fun getLockApi(context: Context): LockApi = createApi(context, LockApi::class.java)
+    fun getBookingApi(context: Context): BookingApi = createApi(context, BookingApi::class.java)
+
 }
