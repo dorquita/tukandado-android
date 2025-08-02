@@ -16,6 +16,9 @@ class LoginViewModel : ViewModel() {
     private val _loginSuccess = MutableStateFlow(false)
     val loginSuccess: StateFlow<Boolean> = _loginSuccess
 
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
@@ -24,6 +27,7 @@ class LoginViewModel : ViewModel() {
 
     fun login(context: Context, email: String, password: String) {
         viewModelScope.launch {
+            _isLoading.value = true
             _errorMessage.value = null
             Log.d("LoginViewModel", "Iniciando login con email: $email")
 
@@ -69,6 +73,8 @@ class LoginViewModel : ViewModel() {
             } catch (e: Exception) {
                 _errorMessage.value = "Login fallido: ${e.message ?: "desconocido"}"
                 Log.e("LoginViewModel", "Excepción durante el login", e)
+            } finally {
+                _isLoading.value = false
             }
         }
     }

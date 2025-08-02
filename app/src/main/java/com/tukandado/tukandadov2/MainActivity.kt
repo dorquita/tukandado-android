@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                     true -> MainScreen()
                     false -> {
                         val navController = rememberNavController()
-                        NavGraph(navController = navController, startDestination = "login")
+                        NavGraph(navController = navController)
                     }
                     null -> Text("Cargando...")
                 }

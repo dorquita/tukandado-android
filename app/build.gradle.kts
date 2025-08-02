@@ -19,7 +19,13 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("debug") {
+            buildConfigField("boolean", "BYPASS_LOGIN", "true")
+            buildConfigField("String",  "TEST_JWT", "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3Y2YxMTJhYTE1ZWMzMmU1NzA1MmMyNyIsInJvbGUiOiJzdXBlcmFkbWluIiwiaWF0IjoxNzU0MTI1MzcxLCJleHAiOjE3NTQxMjgwNzF9.LzMezxHZIzqkxKQRnILsXKUDNhTIIKS7xZ3G3awkJW4\"")
+        }
+        getByName("release") {
+            buildConfigField("boolean", "BYPASS_LOGIN", "false")
+            buildConfigField("String", "TEST_JWT", "\"\"")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -35,12 +41,12 @@ android {
         jvmTarget = "11"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -50,6 +56,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.navigation)
+    implementation("androidx.compose.material:material-icons-extended")
 
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")

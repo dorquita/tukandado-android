@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -32,6 +33,7 @@ fun LoginScreen(onLoginSuccess: (LoginResponse) -> Unit) {
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val isLoading by viewModel.isLoading.collectAsState()
 
 
     LaunchedEffect(loginSuccess) {
@@ -98,9 +100,18 @@ fun LoginScreen(onLoginSuccess: (LoginResponse) -> Unit) {
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
+                .height(48.dp),
+            enabled = !isLoading
         ) {
-            Text("Acceder", fontSize = 16.sp)
+            if (isLoading) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Text("Acceder", fontSize = 16.sp)
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

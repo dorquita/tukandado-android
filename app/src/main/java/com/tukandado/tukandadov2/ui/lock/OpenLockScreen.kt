@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import com.tukandado.tukandadov2.api.LockResponse
+import com.tukandado.tukandadov2.data.SessionManager
 import com.tukandado.tukandadov2.viewmodel.BookingViewModel
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -36,18 +37,23 @@ fun OpenLockScreen(navController: NavController) {
     val bookingViewModel: BookingViewModel = viewModel()
     val locks by lockViewModel.locks.collectAsState()
     val error by lockViewModel.error.collectAsState()
+
     //val coroutineScope = rememberCoroutineScope()
 
     var selectedLockName by remember { mutableStateOf<String?>(null) }
     var selectedLock by remember { mutableStateOf<LockResponse?>(null) }
     var showDialog by remember { mutableStateOf(false) }
 
+    val role by SessionManager(context).getRole().collectAsState(initial = "client")
+    val isAdmin = role == "admin" || role == "superadmin"
+
+
     LaunchedEffect(Unit) {
         lockViewModel.getAllLocks(context)
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Zona Hombres A", style = MaterialTheme.typography.headlineSmall)
+        Text("Cerraduras disponibles num 3", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(8.dp))
 
         // Grid de candados
@@ -62,9 +68,18 @@ fun OpenLockScreen(navController: NavController) {
                     modifier = Modifier
                         .aspectRatio(1f)
                         .clickable {
-                            selectedLockName = lock.lockAlias
-                            selectedLock = lock
-                            showDialog = true
+                            if (isAdmin) {
+                                val name = Uri.encode(lock.lockName)
+                                val alias = Uri.encode(lock.lockAlias)
+                                val data = Uri.encode(lock.lockData)
+                                val mac  = Uri.encode(lock.lockMac)
+                                navController.navigate("adminLock/$name/$alias/$data/$mac")
+                            }
+                            else {
+                                selectedLockName = lock.lockAlias
+                                selectedLock = lock
+                                showDialog = true
+                            }
                         }
                 ) {
                     Box(
