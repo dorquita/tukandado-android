@@ -1,25 +1,22 @@
 package com.tukandado.tukandadov2.ui.components.layout
 
+import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.navigation.NavController
 import com.tukandado.tukandadov2.ttlock.TTLockManager
 import com.tukandado.tukandadov2.ui.components.AdminActionsGrid
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import androidx.compose.material3.TextButton
 
 
 @Composable
@@ -28,7 +25,9 @@ fun AdminLockControlScreen(
     lockAlias: String,
     lockData: String,
     lockMac: String,
-    onBack: () -> Unit
+    lockId: String,
+    onBack: () -> Unit,
+    navController: NavController
 ) {
     val context = LocalContext.current
     val ttLockManager = remember { TTLockManager(context) }
@@ -37,36 +36,72 @@ fun AdminLockControlScreen(
     var isOpening by remember { mutableStateOf(false) }
     var isLockerOpen by remember { mutableStateOf(false) }
 
+    // Modal de feedback
+    var dialogMsg by remember { mutableStateOf<String?>(null) }
+    var dialogIsError by remember { mutableStateOf(false) }
+
+    // Dialog
+    if (dialogMsg != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { dialogMsg = null },
+            title = { androidx.compose.material3.Text(if (dialogIsError) "Error" else "Éxito") },
+            text  = { androidx.compose.material3.Text(dialogMsg!!) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { dialogMsg = null }) {
+                    androidx.compose.material3.Text("OK")
+                }
+            }
+        )
+    }
+
     LockActionLayout(
         lockName = lockName,
         lockAlias = lockAlias,
         isOpening = isOpening,
         isLockerOpen = isLockerOpen,
         onOpen = {
-            isOpening = true
-            try {
-                ttLockManager.controlLock(lockData, lockMac, true)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
             scope.launch {
-                delay(2000L)
-                isOpening = false
-                isLockerOpen = true
-                delay(3000L)
+                isOpening = true
                 isLockerOpen = false
+
+                val result = ttLockManager.controlLock(
+                    lockDataJson = lockData,
+                    lockMac = lockMac,
+                    isOpen = true
+                )
+                isOpening = false
+
+                result.fold(
+                    onSuccess = {
+                        isLockerOpen = true
+                        dialogIsError = false
+                        dialogMsg = "Candado abierto correctamente"
+                        // Oculta el icono de “abierto” tras un rato
+                        launch {
+                            kotlinx.coroutines.delay(2500)
+                            isLockerOpen = false
+                        }
+                    },
+                    onFailure = { e ->
+                        isLockerOpen = false
+                        dialogIsError = true
+                        dialogMsg = e.message ?: "No se pudo abrir el candado"
+                    }
+                )
             }
         },
-        topInfo = {
-
-        },
+        topInfo = { /* opcional */ },
         bottomActions = {
             AdminActionsGrid(
-                onEKeys = { /* TODO: nav a pantalla eKeys */ },
-                onPasswords = { /* TODO: nav a passcodes */ },
-                onRF = { /* TODO: nav a tarjetas RF */ },
-                onLogs = { /* TODO: nav a registros */ },
-                onConfig = { /* TODO: nav a configuración avanzada */ }
+                onEKeys = { navController.navigate("ekeys/$lockId") },
+                onPasswords = {
+                    val dataEnc = Uri.encode(lockData)
+                    val macEnc  = Uri.encode(lockMac)
+                    navController.navigate("passcodes/$lockId/$dataEnc/$macEnc")
+                },
+                onRF = { navController.navigate("rfid") },
+                onLogs = { navController.navigate("registers") },
+                onConfig = { navController.navigate("configuration") }
             )
             Spacer(Modifier.height(12.dp))
         }

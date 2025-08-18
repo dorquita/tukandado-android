@@ -14,6 +14,8 @@ class AuthInterceptor(private val context: Context) : Interceptor {
         val req = chain.request()
         Log.d("AuthInterceptor", "➡️ Interceptando request a: ${req.toString()}")
 
+        Log.d("BYPASS", BuildConfig.BYPASS_LOGIN.toString())
+        Log.d("BuildConfig.TEST_JWT", BuildConfig.TEST_JWT.toString())
         // BYPASS en debug: token de test
         if (BuildConfig.BYPASS_LOGIN && BuildConfig.TEST_JWT.isNotBlank()) {
             Log.d("AuthInterceptor", "🔓 BYPASS_LOGIN activo, usando TEST_JWT")

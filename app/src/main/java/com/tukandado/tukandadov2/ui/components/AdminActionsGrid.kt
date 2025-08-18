@@ -48,7 +48,7 @@ fun AdminActionsGrid(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            AdminActionButton(Icons.Outlined.VpnKey, "eKeys", onEKeys)
+            //AdminActionButton(Icons.Outlined.VpnKey, "Llaves digitales", onEKeys)
             AdminActionButton(Icons.Outlined.Password, "Contraseñas", onPasswords)
             AdminActionButton(Icons.Outlined.Nfc, "Tarjetas RF", onRF)
         }

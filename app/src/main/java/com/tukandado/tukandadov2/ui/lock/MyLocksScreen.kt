@@ -1,4 +1,4 @@
-package com.tukandado.tukandadov2.ui
+/*package com.tukandado.tukandadov2.ui
 
 import android.content.Context
 import androidx.compose.foundation.clickable
@@ -73,4 +73,4 @@ fun MyLocksScreen(
             CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
         }
     }
-}
+}*/

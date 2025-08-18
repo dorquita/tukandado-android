@@ -77,24 +77,19 @@ class SessionManager(private val context: Context) {
      * Si no hay tokens, crea unos "fake" y un usuario por defecto.
      */
     suspend fun ensureDevToken() {
+        if (!BuildConfig.BYPASS_LOGIN) return // o if (!BuildConfig.DEBUG) return
         val at = getAccessToken().first()
         val rt = getRefreshToken().first()
         if (at.isNullOrBlank() || rt.isNullOrBlank()) {
-            saveTokens(
-                accessToken = "dev-access-token",
-                refreshToken = "dev-refresh-token"
-            )
+            saveTokens("dev-access-token", "dev-refresh-token")
         }
         val email = getUserEmail().first()
         if (email.isNullOrBlank()) saveUserEmail("dev@tukandado.com")
-        // Rol por defecto (ajusta a tu modelo)
         saveRole("superadmin")
     }
 
     suspend fun ensureDevSessionForDebug() {
         if (!BuildConfig.BYPASS_LOGIN) return
-
-
     }
 
     // ---------- Booking persistence ----------

@@ -2,6 +2,7 @@ package com.tukandado.tukandadov2.api
 
 import android.content.Context
 import android.util.Log
+import com.tukandado.tukandadov2.BuildConfig
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -32,7 +33,7 @@ object RetrofitInstance {
                 return again
             }
 
-            val baseUrl = "http://10.0.2.2:3000/api/"
+            val baseUrl = BuildConfig.BACKEND_URL
             Log.d("RetrofitInstance", "🚀 Creando nueva instancia Retrofit con baseUrl=$baseUrl")
 
             val newRetrofit = Retrofit.Builder()
@@ -55,4 +56,6 @@ object RetrofitInstance {
     fun getClubApi(context: Context): ClubApi = createApi(context, ClubApi::class.java)
     fun getLockApi(context: Context): LockApi = createApi(context, LockApi::class.java)
     fun getBookingApi(context: Context): BookingApi = createApi(context, BookingApi::class.java)
+    fun getEkeyApi(context: Context): EkeyApi = createApi(context, EkeyApi::class.java)
+    fun getPasscodeApi(context: Context): PasscodeApi = createApi(context, PasscodeApi::class.java)
 }

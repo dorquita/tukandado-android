@@ -1,5 +1,6 @@
 package com.tukandado.tukandadov2.ui.components.layout
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
@@ -18,16 +19,19 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 @Composable
 fun HeaderBar(
     navController: NavHostController,
-    // si quieres inyectar el % batería desde la pantalla actual:
     batteryPercent: Int? = null,
-    usePrimaryColor: Boolean = false // ponlo en true si quieres el azul tipo TTLock
+    usePrimaryColor: Boolean = false,
+    actionLabelOverride: String? = null,            // 👈 label opcional
+    onAction: (() -> Unit)? = null,                 // 👈 callback opcional
+    actionEnabled: Boolean = true                   // 👈 enabled
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
-
     val canGoBack = navController.previousBackStackEntry != null
 
     val title = titleForDestination(destination)
+    val computedLabel = actionLabelOverride?.takeIf { it.isNotBlank() }
+        ?: actionLabelForDestination(destination).takeIf { it.isNotBlank() }
 
     val colors = if (usePrimaryColor)
         TopAppBarDefaults.topAppBarColors(
@@ -46,11 +50,36 @@ fun HeaderBar(
                     Icon(Icons.Outlined.ArrowBack, contentDescription = "Volver")
                 }
             } else {
-                // ocupa el hueco para que el título quede centrado aunque no haya back
                 Spacer(Modifier.size(48.dp))
             }
         },
-        colors = colors
+        colors = colors,
+        actions = {
+            val actionsColor =
+                if (usePrimaryColor) MaterialTheme.colorScheme.onPrimary
+                else LocalContentColor.current
+
+            if (!computedLabel.isNullOrBlank()) {
+                if (onAction != null) {
+                    TextButton(
+                        onClick = onAction,
+                        enabled = actionEnabled,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = actionsColor,
+                            disabledContentColor = actionsColor.copy(alpha = 0.38f)
+                        )
+                    ) {
+                        Text(computedLabel)
+                    }
+                } else {
+                    Text(
+                        computedLabel,
+                        color = actionsColor,
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+        }
     )
 }
 
@@ -60,11 +89,42 @@ private fun titleForDestination(dest: NavDestination?): String {
     return when {
         route.startsWith("activeReservation") -> "Reserva activa"
         route.startsWith("adminLock")         -> "Tukandado"
-        route.startsWith("home")              -> "Inicio"
-        route.startsWith("locks")             -> "Candados"
-        route.startsWith("clubs")             -> "Clubs"
-        route.startsWith("profile")           -> "Perfil"
-        route.startsWith("login")             -> ""
-        else                                  -> ""
+
+        // Passcodes (orden importa: create -> detail -> lista)
+        route.startsWith("passcodes/create")                -> "Crear passcode"
+        route.startsWith("passcodes/") && route.endsWith("/detail") -> "Detalle del passcode"
+        route.startsWith("passcodes")                       -> "Contraseñas"
+
+        // Ekeys
+        route.startsWith("ekeys") || route.startsWith("ekey")-> "Llaves digitales"
+
+        // Resto de secciones
+        route.startsWith("configuration")    -> "Configuración"
+        route.startsWith("registers")        -> "Registros"
+        route.startsWith("rfid")             -> "Tarjetas RFID"
+        route.startsWith("home")             -> "Inicio"
+        route.startsWith("locks")            -> "Candados"
+        route.startsWith("clubs")            -> "Clubs"
+        route.startsWith("profile")          -> "Perfil"
+        route.startsWith("passwords")        -> "Contraseñas"
+        route.startsWith("login")            -> ""
+        else                                 -> ""
+    }
+}
+
+
+private fun actionLabelForDestination(dest: NavDestination?): String {
+    val route = dest?.route ?: return ""
+    return when {
+        // Acciones de secciones
+        route.startsWith("ekeys") || route.startsWith("ekey") -> "Reiniciar"
+        route.startsWith("rfid")                              -> "Reiniciar"
+        route.startsWith("registers")                         -> "Reiniciar"
+
+        route.startsWith("passcodes/create/")                  -> "Guardar"     // 👈 importante
+        route.startsWith("passcodes/") && route.endsWith("/detail") -> ""
+        route.startsWith("passcodes")                  -> ""     // 👈 importante
+
+        else                                                  -> ""
     }
 }
