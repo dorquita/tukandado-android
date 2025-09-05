@@ -1,29 +1,23 @@
 package com.tukandado.tukandadov2.ui.components.layout
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.material3.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import com.tukandado.tukandadov2.R
 import com.tukandado.tukandadov2.ui.components.BatteryIndicator
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -34,16 +28,18 @@ fun LockActionLayout(
     isLockerOpen: Boolean,
     onOpen: () -> Unit,
     topInfo: @Composable () -> Unit = {},
-    bottomActions: @Composable ColumnScope.() -> Unit = {}
+    bottomActions: @Composable ColumnScope.() -> Unit = {},
+    // 👇 Nuevo: controlar si mostramos batería
+    isAdmin: Boolean = false
 ) {
-    val haptics = LocalHapticFeedback.current   // ← define aquí
+    val haptics = LocalHapticFeedback.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 32.dp)
             .padding(bottom = 32.dp),
-    verticalArrangement = Arrangement.Top,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(Modifier.fillMaxWidth()) {
@@ -52,16 +48,19 @@ fun LockActionLayout(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.align(Alignment.Center)
             )
-            BatteryIndicator(
-                percent = 100,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 4.dp)
-            )
+            // 👇 Sólo admins ven el indicador de batería
+            if (isAdmin) {
+                BatteryIndicator(
+                    percent = 100, // si tienes el dato real, pásalo aquí
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                )
+            }
         }
+
         Spacer(Modifier.height(8.dp))
         topInfo()
-
         Spacer(Modifier.height(16.dp))
 
         Box(
@@ -70,9 +69,7 @@ fun LockActionLayout(
                 .clip(CircleShape)
                 .combinedClickable(
                     enabled = !isOpening,
-                    onClick = {
-                        onOpen()
-                    },
+                    onClick = { onOpen() },
                     onLongClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onOpen()
@@ -88,30 +85,15 @@ fun LockActionLayout(
             )
             if (isOpening) {
                 CircularProgressIndicator(
-                    modifier = Modifier.fillMaxSize().padding(8.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
                     strokeWidth = 4.dp
                 )
             }
         }
 
         Text("Pulsa para abrir", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-        Spacer(Modifier.height(8.dp))
-
-        /*AnimatedContent(
-            targetState = isLockerOpen,
-            transitionSpec = {
-                (fadeIn(tween(300)) as EnterTransition) togetherWith
-                        (fadeOut(tween(300)) as ExitTransition)
-            },
-            label = "locker_status"
-        ) { open ->
-            if (open) {
-                Text("\uD83D\uDD13 Taquilla abierta", color = Color(0xFF10B981))
-            } else {
-                Text("\uD83D\uDD12 Taquilla cerrada", color = Color.Red)
-            }
-        }*/
-
         Spacer(Modifier.height(24.dp))
         bottomActions()
     }

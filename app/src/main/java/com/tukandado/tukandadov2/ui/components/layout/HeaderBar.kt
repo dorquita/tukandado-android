@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.tukandado.tukandadov2.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,13 +22,26 @@ fun HeaderBar(
     navController: NavHostController,
     batteryPercent: Int? = null,
     usePrimaryColor: Boolean = false,
-    actionLabelOverride: String? = null,            // 👈 label opcional
-    onAction: (() -> Unit)? = null,                 // 👈 callback opcional
-    actionEnabled: Boolean = true                   // 👈 enabled
+    actionLabelOverride: String? = null,
+    onAction: (() -> Unit)? = null,
+    actionEnabled: Boolean = true
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
-    val canGoBack = navController.previousBackStackEntry != null
+    val route = destination?.route?.trimEnd('/')
+
+    // Top-level tabs (no flecha)
+    val isTopLevel = route in listOf(
+        Screen.Home.route,
+        Screen.Locks.route,
+        Screen.Clubs.route,
+        Screen.Profile.route,
+        "login"
+    )
+
+    val canGoBackStack = navController.previousBackStackEntry != null
+    // Mostrar flecha si: hay back stack, o NO es una ruta de pestaña principal
+    val showBack = canGoBackStack || !isTopLevel
 
     val title = titleForDestination(destination)
     val computedLabel = actionLabelOverride?.takeIf { it.isNotBlank() }
@@ -45,12 +59,30 @@ fun HeaderBar(
     CenterAlignedTopAppBar(
         title = { Text(title, style = MaterialTheme.typography.titleMedium) },
         navigationIcon = {
-            if (canGoBack) {
-                IconButton(onClick = { navController.popBackStack() }) {
+            val isActiveReservation = route?.startsWith("activeReservation/") == true
+
+            if (showBack) {
+                IconButton(onClick = {
+                    if (isActiveReservation) {
+                        // Evita el rebote a activeReservation cuando hay reserva activa
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    } else if (canGoBackStack) {
+                        navController.popBackStack()
+                    } else {
+                        // Ruta no top-level sin backstack: lleva a Home
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Home.route) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }) {
                     Icon(Icons.Outlined.ArrowBack, contentDescription = "Volver")
                 }
             } else {
-                Spacer(Modifier.size(48.dp))
+                Spacer(Modifier.size(48.dp)) // reserva espacio para alinear el título
             }
         },
         colors = colors,
@@ -83,48 +115,42 @@ fun HeaderBar(
     )
 }
 
-/** Mapea tus rutas a títulos legibles */
+/** Título por patrón EXACTO de la route (se ignora barra final) */
 private fun titleForDestination(dest: NavDestination?): String {
-    val route = dest?.route ?: return ""
-    return when {
-        route.startsWith("activeReservation") -> "Reserva activa"
-        route.startsWith("adminLock")         -> "Tukandado"
-
-        // Passcodes (orden importa: create -> detail -> lista)
-        route.startsWith("passcodes/create")                -> "Crear passcode"
-        route.startsWith("passcodes/") && route.endsWith("/detail") -> "Detalle del passcode"
-        route.startsWith("passcodes")                       -> "Contraseñas"
-
-        // Ekeys
-        route.startsWith("ekeys") || route.startsWith("ekey")-> "Llaves digitales"
-
-        // Resto de secciones
-        route.startsWith("configuration")    -> "Configuración"
-        route.startsWith("registers")        -> "Registros"
-        route.startsWith("rfid")             -> "Tarjetas RFID"
-        route.startsWith("home")             -> "Inicio"
-        route.startsWith("locks")            -> "Candados"
-        route.startsWith("clubs")            -> "Clubs"
-        route.startsWith("profile")          -> "Perfil"
-        route.startsWith("passwords")        -> "Contraseñas"
-        route.startsWith("login")            -> ""
-        else                                 -> ""
+    val r = dest?.route?.trimEnd('/') ?: return ""
+    return when (r) {
+        "login" -> ""
+        Screen.Home.route    -> "Inicio"
+        Screen.Locks.route   -> "Candados"
+        Screen.Clubs.route   -> "Clubs"
+        Screen.Profile.route -> "Perfil"
+        "clubs" -> "Centros"
+        "club/{clubId}" -> "Centro"
+        "configuration" -> "Configuración"
+        "registers"     -> "Registros"
+        "rfid"          -> "Tarjetas RFID"
+        "bookings"          -> "Mis reservas"
+        "ekeys/{lockId}" -> "Llaves digitales"
+        "activeReservation/{lockId}/{lockName}/{lockAlias}/{lockData}/{lockMac}" -> "Reserva activa"
+        "adminLock/{lockName}/{lockAlias}/{lockData}/{lockMac}/{lockId}" -> "Tukandado"
+        "passcodes/create/{lockId}/{lockData}/{lockMac}" -> "Crear passcode"
+        "passcodes/{passcodeId}/detail/{lockId}/{lockData}/{lockMac}"   -> "Detalle del passcode"
+        "passcodes/{lockId}/{lockData}/{lockMac}"                        -> "Contraseñas"
+        else -> ""
     }
 }
 
-
+/** Label del botón de acción del AppBar por ruta exacta (sin barra final) */
 private fun actionLabelForDestination(dest: NavDestination?): String {
-    val route = dest?.route ?: return ""
-    return when {
-        // Acciones de secciones
-        route.startsWith("ekeys") || route.startsWith("ekey") -> "Reiniciar"
-        route.startsWith("rfid")                              -> "Reiniciar"
-        route.startsWith("registers")                         -> "Reiniciar"
-
-        route.startsWith("passcodes/create/")                  -> "Guardar"     // 👈 importante
-        route.startsWith("passcodes/") && route.endsWith("/detail") -> ""
-        route.startsWith("passcodes")                  -> ""     // 👈 importante
-
-        else                                                  -> ""
+    val r = dest?.route?.trimEnd('/') ?: return ""
+    return when (r) {
+        "ekeys/{lockId}" -> "Reiniciar"
+        "rfid"           -> "Reiniciar"
+        "registers"      -> "Reiniciar"
+        "passcodes/{lockId}/{lockData}/{lockMac}" -> "Reiniciar"
+        "passcodes/create/{lockId}/{lockData}/{lockMac}" -> "Guardar"
+        "passcodes/{passcodeId}/detail/{lockId}/{lockData}/{lockMac}" -> ""
+        "adminLock/{lockName}/{lockAlias}/{lockData}/{lockMac}/{lockId}" -> ""
+        else -> ""
     }
 }

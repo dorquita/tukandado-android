@@ -23,8 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.tukandado.tukandadov2.api.ActiveBooking
 import com.tukandado.tukandadov2.api.CreatePasscodeRequest
 import com.tukandado.tukandadov2.api.PasscodeDto
+import com.tukandado.tukandadov2.data.SessionManager
 import com.tukandado.tukandadov2.ui.components.StatusChip
 import com.tukandado.tukandadov2.ui.components.StatusChoiceChip
 import com.tukandado.tukandadov2.ui.components.TypeChip
@@ -56,6 +58,12 @@ fun PasscodeListScreen(
     val pages by vm.pages.collectAsState()
     val total by vm.total.collectAsState()
 
+    val sessionManager = remember { SessionManager(context) }
+
+    val clubId: String? by sessionManager
+        .getClub()
+        .collectAsState(initial = null)
+
     var q by remember { mutableStateOf("") }
     var showOnlyActive by remember { mutableStateOf(false) }
     var statusFilter by remember { mutableStateOf<String?>(null) } // "active","expired","revoked","failed",null
@@ -83,6 +91,7 @@ fun PasscodeListScreen(
             val result = vm.resetPasscodes(
                 context = context,
                 lockDataJson = lockData,
+                lockIdForBackend = lockId,
                 lockMac = lockMac
             )
             if (result.isSuccess) {
@@ -112,7 +121,7 @@ fun PasscodeListScreen(
             page = 1,
             limit = 20,
             lockId = lockId,
-            clubId = "67ceeb75a15ec32e57052c1f",
+            clubId = clubId,
             activeOnly = activeOnlyParam, // 👈 importante: no fuerces false
             status = null,
             q = null
@@ -146,7 +155,7 @@ fun PasscodeListScreen(
                         page = 1,
                         limit = 20,
                         lockId = lockId,
-                        clubId = "67ceeb75a15ec32e57052c1f",
+                        clubId = clubId,
                         q = q.ifBlank { null },
                         activeOnly = if (showOnlyActive) true else null, // si es false, mejor omitir
                         status = statusFilter
@@ -160,7 +169,7 @@ fun PasscodeListScreen(
                         page = 1,
                         limit = 20,
                         lockId = lockId,
-                        clubId = "67ceeb75a15ec32e57052c1f",
+                        clubId = clubId,
                         q = q.ifBlank { null },
                         activeOnly = if (showOnlyActive) true else null,
                         status = statusFilter
@@ -174,7 +183,7 @@ fun PasscodeListScreen(
                         page = 1,
                         limit = 20,
                         lockId = lockId,
-                        clubId = "67ceeb75a15ec32e57052c1f",
+                        clubId = clubId,
                         q = q.ifBlank { null },
                         activeOnly = if (showOnlyActive) true else null,
                         status = statusFilter

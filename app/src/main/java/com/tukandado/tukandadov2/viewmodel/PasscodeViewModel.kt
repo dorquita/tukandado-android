@@ -1,12 +1,14 @@
 package com.tukandado.tukandadov2.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tukandado.tukandadov2.BuildConfig
+import com.tukandado.tukandadov2.api.CreateBookingPasscodeRequest
 import com.tukandado.tukandadov2.api.CreatePasscodeRequest
 import com.tukandado.tukandadov2.api.PasscodeApi
 import com.tukandado.tukandadov2.api.PasscodeDto
@@ -206,38 +208,96 @@ class PasscodeViewModel : ViewModel() {
         }
     }
 
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun createPasscodeClient(
+        context: Context,
+        request: CreatePasscodeRequest,
+        clientPasscodeVm: PasscodeViewModel,     // 👈 VM que tiene createBookingPasscode(...)
+        refreshAfterCreate: Boolean = true
+    ): Result<PasscodeDto> {
+        _state.value = _state.value.copy(isLoading = true, modal = PasscodeUiModal.None)
+        return try {
+            // 1) Bluetooth (si tenemos lockData y lockMac)
+            val canBt = !request.lockData.isNullOrBlank() && !request.lockMac.isNullOrBlank() && !BuildConfig.BYPASS_LOGIN
+            if (canBt) {
+                // Para cliente tratamos como "permanent" (ventana amplia)
+                val (startMs, endMs) = computeStartEndMillis("permanent", null, null)
+                Log.d("PasscodeVM", "🔐 TTLock.create (CLIENT) pass=${request.code.length}d start=$startMs end=$endMs mac=${request.lockMac}")
+                TTLockManager(context).createCustomPasscode(
+                    passcode = request.code,
+                    startDate = startMs,
+                    endDate = endMs,
+                    lockDataJson = request.lockData!!,
+                    lockMac = request.lockMac!!
+                ).getOrThrow()
+                Log.d("PasscodeVM", "✅ BT creado (CLIENT)")
+            } else {
+                Log.w("PasscodeVM", "⚠️ (CLIENT) Sin lockData/lockMac → salto BT, solo backend")
+            }
+
+            // 2) Backend (asociar a la reserva del usuario autenticado)
+            val nameOrNull = request.name?.ifBlank { null }
+            Log.d("PasscodeVM", "➡️ (CLIENT) POST /passcodes/booking { code,name }")
+            val result = clientPasscodeVm.createBookingPasscode(
+                context = context,
+                code = request.code,
+                name = nameOrNull
+            )
+
+            if (result.isSuccess) {
+                val created = result.getOrNull()!!
+                _selectedPasscode.value = created
+                _passcodes.value = listOf(created) + _passcodes.value
+                Log.d("PasscodeVM", "✅ (CLIENT) backend id=${created._id}")
+                if (refreshAfterCreate) listPasscodes(context, page = _page.value)
+                Result.success(created)
+            } else {
+                val ex = result.exceptionOrNull() ?: RuntimeException("Error desconocido creando passcode (cliente)")
+                Result.failure(ex)
+            }
+        } catch (e: Exception) {
+            Log.e("PasscodeVM", "💥 create (CLIENT)", e)
+            Result.failure(e)
+        } finally {
+            _state.value = _state.value.copy(isLoading = false)
+        }
+    }
+
+
     @RequiresApi(Build.VERSION_CODES.O)
     suspend fun resetPasscodes(
         context: Context,
         lockDataJson: String?,
         lockMac: String?,
-        lockIdForBackend: String? = null   // <- NUEVO: TTLock lockId (num o string) para el backend
+        lockIdForBackend: String? = null  // TTLock lockId (num o string) para el backend
     ): Result<Unit> {
+        Log.d("Lo que llega lockDataJson",lockDataJson.toString())
+        Log.d("Lo que llega lockMac",lockMac.toString())
+        Log.d("Lo que llega lockIdForBackend",lockIdForBackend.toString())
         _state.value = _state.value.copy(isLoading = true, modal = PasscodeUiModal.None)
         return try {
-            if (lockDataJson.isNullOrBlank() || lockMac.isNullOrBlank()) {
-                return Result.failure(IllegalArgumentException("Faltan datos del candado (lockData/MAC)."))
+            val canBt = !lockDataJson.isNullOrBlank() && !lockMac.isNullOrBlank() && !BuildConfig.BYPASS_LOGIN
+
+            if (canBt) {
+                Log.d("PasscodeVM", "🔁 Reset passcodes (BLE) mac=$lockMac")
+                TTLockManager(context)
+                    .resetAllPasscodes(lockDataJson, lockMac)
+                    .getOrThrow()
+                Log.d("PasscodeVM", "✅ BT reset ok")
+            } else {
+                Log.w("PasscodeVM", "⚠️ Sin lockData/lockMac o BYPASS_LOGIN activo → salto BT, solo backend")
             }
 
-            Log.d("PasscodeVM", "🔁 Reset passcodes (BLE) mac=$lockMac")
-            val bleRes = TTLockManager(context).resetAllPasscodes(lockDataJson, lockMac)
-            bleRes.fold(
-                onSuccess = { /* ok */ },
-                onFailure = { err ->
-                    throw RuntimeException("Error Bluetooth reseteando passcodes: ${err.message}", err)
-                }
-            )
-
-            // ➡️ Backend: marcar/revocar todos los passcodes del lock
+            // ➡️ Backend: marcar/revocar todos los passcodes del lock (si tenemos lockId)
             if (!lockIdForBackend.isNullOrBlank()) {
                 Log.d("PasscodeVM", "➡️ POST /locks/{lockId}/passcodes/reset lockId=$lockIdForBackend")
                 val resp = api(context).resetPasscodesByLock(lockIdForBackend)
-                // Si tu backend responde 200/201 con body:
-                if (!resp.isSuccessful) {
+
+                // Ajusta esta condición si tu endpoint devuelve 204 sin body:
+                if (!resp.isSuccessful /* && resp.code() != 204 */) {
                     throw RuntimeException("Backend reset HTTP ${resp.code()}")
                 }
-                // Si responde 204, usa esta variante:
-                // if (!resp.isSuccessful && resp.code() != 204) throw RuntimeException("Backend reset HTTP ${resp.code()}")
                 Log.d("PasscodeVM", "⬅️ backend reset ok code=${resp.code()}")
             } else {
                 Log.w("PasscodeVM", "⚠️ Sin lockIdForBackend → no se notificará el reseteo global al servidor")
@@ -405,7 +465,47 @@ class PasscodeViewModel : ViewModel() {
         }
     }
 
+    suspend fun createBookingPasscode(
+        context: Context,
+        code: String,
+        name: String? = null
+    ): Result<PasscodeDto> {
+        return try {
+            val api: PasscodeApi = RetrofitInstance.getPasscodeApi(context)
+            val resp = api.createBookingPasscode(CreateBookingPasscodeRequest(code, name))
+            if (resp.isSuccessful) {
+                val body = resp.body()
+                if (body != null) Result.success(body)
+                else Result.failure(Exception("Respuesta vacía"))
+            } else {
+                Result.failure(Exception("HTTP ${resp.code()} ${resp.errorBody()?.string().orEmpty()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
+    /**
+     * Obtiene todos los passcodes creados en una reserva.
+     * GET /passcodes/booking/:bookingId?includeDeleted={true|false}
+     */
+    suspend fun getBookingPasscodes(
+        context: Context,
+        bookingId: String,
+        includeDeleted: Boolean = false
+    ): Result<List<PasscodeDto>> {
+        return try {
+            val api: PasscodeApi = RetrofitInstance.getPasscodeApi(context)
+            val resp = api.getPasscodesForBooking(bookingId, includeDeleted)
+            if (resp.isSuccessful) {
+                Result.success(resp.body().orEmpty())
+            } else {
+                Result.failure(Exception("HTTP ${resp.code()} ${resp.errorBody()?.string().orEmpty()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     fun dismissModal() {
         _state.value = _state.value.copy(modal = PasscodeUiModal.None)

@@ -54,6 +54,7 @@ data class LoginResponse(
     val name: String,
     val email: String,
     val role: String,
+    val clubId: String,
     val activeBooking: ActiveBooking?
 )
 

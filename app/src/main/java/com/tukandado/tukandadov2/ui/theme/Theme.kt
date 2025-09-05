@@ -10,6 +10,13 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.map
+
+private val android.content.Context.dataStore by preferencesDataStore("settings")
+private val KEY_DARK_THEME = booleanPreferencesKey("dark_theme")
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,

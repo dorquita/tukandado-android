@@ -51,7 +51,13 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            TukandadoV2Theme(dynamicColor = false) {
+            val sessionManager = remember { SessionManager(this) }
+
+            // Si getDarkTheme() es Flow<Boolean?>:
+            val isDarkPref by sessionManager.getDarkTheme().collectAsState(initial = null)
+            val isDark = isDarkPref ?: androidx.compose.foundation.isSystemInDarkTheme()
+
+            TukandadoV2Theme(darkTheme = isDark, dynamicColor = true) {
                 val navController = rememberNavController()
                 var isLoggedIn by remember { mutableStateOf<Boolean?>(null) }
 

@@ -45,7 +45,7 @@ fun AdminLockControlScreen(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { dialogMsg = null },
             title = { androidx.compose.material3.Text(if (dialogIsError) "Error" else "Éxito") },
-            text  = { androidx.compose.material3.Text(dialogMsg!!) },
+            text = { androidx.compose.material3.Text(dialogMsg!!) },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = { dialogMsg = null }) {
                     androidx.compose.material3.Text("OK")
@@ -96,7 +96,7 @@ fun AdminLockControlScreen(
                 onEKeys = { navController.navigate("ekeys/$lockId") },
                 onPasswords = {
                     val dataEnc = Uri.encode(lockData)
-                    val macEnc  = Uri.encode(lockMac)
+                    val macEnc = Uri.encode(lockMac)
                     navController.navigate("passcodes/$lockId/$dataEnc/$macEnc")
                 },
                 onRF = { navController.navigate("rfid") },
@@ -104,6 +104,7 @@ fun AdminLockControlScreen(
                 onConfig = { navController.navigate("configuration") }
             )
             Spacer(Modifier.height(12.dp))
-        }
+        },
+        isAdmin = true
     )
 }

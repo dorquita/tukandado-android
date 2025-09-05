@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.tukandado.tukandadov2.api.PasscodeDto
+import com.tukandado.tukandadov2.data.SessionManager
 import com.tukandado.tukandadov2.ui.components.layout.AdminListScaffold
 import com.tukandado.tukandadov2.viewmodel.LoginViewModel
 import com.tukandado.tukandadov2.viewmodel.PasscodeViewModel
@@ -37,6 +38,12 @@ fun PasscodeScreen(
     val pages by vm.pages.collectAsState()
     val total by vm.total.collectAsState()
 
+    val sessionManager = remember { SessionManager(context) }
+
+    val clubId: String? by sessionManager
+        .getClub()
+        .collectAsState(initial = null)
+
     LaunchedEffect(lockId) {
         Log.d("PasscodeScreen", "🚀 LaunchedEffect -> listPasscodes(lockId=$lockId)")
         vm.listPasscodes(
@@ -44,7 +51,7 @@ fun PasscodeScreen(
             page = 1,
             limit = 20,
             lockId = lockId,
-            clubId = "67ceeb75a15ec32e57052c1f",
+            clubId = clubId,
             activeOnly = null // pon true si quieres solo activos
         )
     }

@@ -38,10 +38,17 @@ import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+import androidx.compose.ui.draw.alpha
+import com.tukandado.tukandadov2.data.SessionManager
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.tukandado.tukandadov2.ttlock.TTLockManager
 
 /**
- * Pantalla de creación de passcode usando el botón de acción global del HeaderBar.
- * Recibe setHeaderAction para configurar el botón "Guardar" del AppBar superior.
+ * Pantalla de creación de passcode.
+ * - Admin: igual que antes (tipo, fechas, personalizado).
+ * - Cliente: sin tipo ni personalizado. Crea siempre "permanent" y se mostrará
+ *            un aviso de que el código se borrará al finalizar la reserva.
  */
 @SuppressLint("UnrememberedMutableState")
 @RequiresApi(Build.VERSION_CODES.O)
@@ -53,42 +60,42 @@ fun PasscodeCreateScreen(
     lockMac: String,
     navController: NavController,
     onBack: () -> Unit,
-    // 👇 función que te expone MainScreen para configurar el botón del HeaderBar
     setHeaderAction: (label: String?, enabled: Boolean, onClick: (() -> Unit)?) -> Unit
 ) {
     val vm: PasscodeViewModel = viewModel()
     val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    val role by sessionManager.getRole().collectAsState(initial = "client")
+    val isAdmin = role == "admin" || role == "superadmin"
+    val isClient = !isAdmin
 
     var name by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+
+    // Admin-only state
     var type by remember { mutableStateOf("timebound") } // permanent | timebound | one_time
     var validFrom by remember { mutableStateOf<Instant?>(null) }
     var validTo by remember { mutableStateOf<Instant?>(null) }
     var isCustom by remember { mutableStateOf(false) }
+
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
+    val TAG = "PasscodeCreate"
 
-    val TAG = "PasscodeDatePick"
-
-    LaunchedEffect(Unit) {
-        Log.d(TAG, "init validFrom=$validFrom validTo=$validTo")
-    }
-    LaunchedEffect(validFrom) {
-        Log.d(TAG, "RECOMPOSE → validFrom cambió a: $validFrom")
-    }
-    LaunchedEffect(validTo) {
-        Log.d(TAG, "RECOMPOSE → validTo cambió a: $validTo")
-    }
-
+    val clientPasscodeVm: PasscodeViewModel = viewModel()
 
     // Reglas de habilitación del guardado
     val canSave by derivedStateOf {
-        code.length in 4..10 && (type != "timebound" || (validFrom != null && validTo != null))
+        if (isClient) {
+            // Cliente: solo necesita PIN válido
+            code.length in 4..10
+        } else {
+            // Admin: igual que antes
+            code.length in 4..10 && (type != "timebound" || (validFrom != null && validTo != null))
+        }
     }
-
-    // Acción de guardado (misma lógica que ya tenías)
 
     val onSave: () -> Unit = save@{
         if (!canSave || loading) return@save
@@ -96,29 +103,63 @@ fun PasscodeCreateScreen(
             loading = true
             error = null
             try {
-                val result = vm.createPasscode(
-                    context = context,
-                    request = CreatePasscodeRequest(
-                        lockId = lockId,
-                        code = code,
-                        type = type,
-                        validFrom = validFrom?.toString(),
-                        validTo = validTo?.toString(),
-                        name = name.ifBlank { null },
-                        isCustom = isCustom,
-                        lockData = lockData,
-                        lockMac = lockMac
-                    ),
-                    refreshAfterCreate = true
-                )
+                if (isClient) {
+                    val result = vm.createPasscodeClient(
+                        context = context,
+                        request = CreatePasscodeRequest(
+                            lockId   = lockId,
+                            code     = code,
+                            type     = "booking",          // para cliente lo tratamos como permanente
+                            validFrom= null,
+                            validTo  = null,
+                            name     = name.ifBlank { null },
+                            isCustom = false,
+                            lockData = lockData,
+                            lockMac  = lockMac
+                        ),
+                        clientPasscodeVm = clientPasscodeVm,
+                        refreshAfterCreate = true
+                    )
 
-                if (result.isSuccess) {
-                    Toast.makeText(context, "Código creado correctamente", Toast.LENGTH_SHORT).show()
-                    navController.popBackStack() // vuelve al listado
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Código creado correctamente", Toast.LENGTH_SHORT).show()
+                        navController.popBackStack()
+                    } else {
+                        val msg = result.exceptionOrNull()?.message ?: "Error creando el código"
+                        error = msg
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
                 } else {
-                    val msg = result.exceptionOrNull()?.message ?: "Error creando el código"
-                    error = msg
-                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    // Admin: lo que ya hacías
+                    val finalType   = type
+                    val finalFrom   = validFrom?.toString()
+                    val finalTo     = validTo?.toString()
+                    val finalCustom = isCustom
+
+                    val result = vm.createPasscode(
+                        context = context,
+                        request = CreatePasscodeRequest(
+                            lockId = lockId,
+                            code = code,
+                            type = finalType,
+                            validFrom = finalFrom,
+                            validTo = finalTo,
+                            name = name.ifBlank { null },
+                            isCustom = finalCustom,
+                            lockData = lockData,
+                            lockMac = lockMac
+                        ),
+                        refreshAfterCreate = true
+                    )
+
+                    if (result.isSuccess) {
+                        Toast.makeText(context, "Código creado correctamente", Toast.LENGTH_SHORT).show()
+                        navController.popBackStack()
+                    } else {
+                        val msg = result.exceptionOrNull()?.message ?: "Error creando el código"
+                        error = msg
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    }
                 }
             } finally {
                 loading = false
@@ -126,16 +167,15 @@ fun PasscodeCreateScreen(
         }
     }
 
-    // 👇 Conecta el botón del HeaderBar a esta pantalla
-    LaunchedEffect(code, type, validFrom, validTo) {
-        setHeaderAction("Guardar", canSave, onSave)
+    // Conecta el botón del HeaderBar
+    LaunchedEffect(code, type, validFrom, validTo, isClient) {
+        setHeaderAction("Guardar", canSave && !loading, onSave)
     }
-    // Limpia el botón cuando sales de la pantalla
     DisposableEffect(Unit) {
         onDispose { setHeaderAction(null, true, null) }
     }
 
-    // Contenido de la pantalla (sin TopAppBar local)
+    // Contenido
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -147,36 +187,51 @@ fun PasscodeCreateScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Tipo: segmented
-        SegmentedButtons(
-            options = listOf(
-                "permanent" to "Permanente",
-                "timebound" to "Temporal",
-                "one_time" to "Una vez"
-            ),
-            selected = type,
-            onSelect = { type = it }
-        )
+        // ---------- UI específica por rol ----------
+        if (isAdmin) {
+            // Admin: selector de tipo
+            SegmentedButtons(
+                options = listOf(
+                    "permanent" to "Permanente",
+                    "timebound" to "Temporal",
+                    "one_time"  to "Una vez"
+                ),
+                selected = type,
+                onSelect = { type = it },
+                disabled = setOf("one_time")
+            )
+        } else {
+            // Cliente: aviso de comportamiento
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                ListItem(
+                    headlineContent = { Text("Código temporal de reserva") },
+                    supportingContent = {
+                        Text(
+                            "Tu PIN funcionará mientras tu reserva esté activa. " +
+                                    "Al finalizar la reserva, el código se eliminará automáticamente."
+                        )
+                    }
+                )
+            }
+        }
 
         OutlinedTextField(
             value = code,
-            onValueChange = { if (it.length <= 10 && it.all { c -> c.isDigit() }) code = it },
+            onValueChange = { if (it.length <= 10 && it.all(Char::isDigit)) code = it },
             label = { Text("PIN (4–10 dígitos)") },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             singleLine = true
         )
 
-        // Vigencia solo si no es permanente
-        if (type != "permanent") {
+        // Vigencia solo si no es permanente (Admin)
+        if (isAdmin && type != "permanent") {
             DateTimeRow(
                 label = "Inicio",
                 instant = validFrom,
                 onPick = {
-                    Log.d(TAG, "onPick Inicio (actual=$validFrom)")
                     scope.launch {
                         val picked = pickDateTime(context, validFrom)
-                        Log.d(TAG, "onPick Inicio → picked=$picked")
                         if (picked != null) validFrom = picked
                     }
                 }
@@ -185,23 +240,23 @@ fun PasscodeCreateScreen(
                 label = "Fin",
                 instant = validTo,
                 onPick = {
-                    Log.d(TAG, "onPick Fin (actual=$validTo)")
                     scope.launch {
                         val picked = pickDateTime(context, validTo)
-                        Log.d(TAG, "onPick Fin → picked=$picked")
                         if (picked != null) validTo = picked
                     }
                 }
             )
-
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            FilterChip(
-                selected = isCustom,
-                onClick = { isCustom = !isCustom },
-                label = { Text("Personalizado") }
-            )
+        // Chip “Personalizado” solo Admin
+        if (isAdmin) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                FilterChip(
+                    selected = isCustom,
+                    onClick = { isCustom = !isCustom },
+                    label = { Text("Personalizado") }
+                )
+            }
         }
 
         if (error != null) {
@@ -219,15 +274,27 @@ fun PasscodeCreateScreen(
 private fun SegmentedButtons(
     options: List<Pair<String, String>>,
     selected: String,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    disabled: Set<String> = emptySet()
 ) {
     SingleChoiceSegmentedButtonRow {
         options.forEachIndexed { idx, (value, label) ->
+            val isDisabled = value in disabled
+            val buttonModifier = if (isDisabled) Modifier.alpha(0.5f) else Modifier
+            val labelColor = if (isDisabled)
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            else
+                MaterialTheme.colorScheme.onSurface
+
             SegmentedButton(
                 selected = selected == value,
-                onClick = { onSelect(value) },
+                onClick = { if (!isDisabled) onSelect(value) },
+                enabled = !isDisabled,
+                modifier = buttonModifier,
                 shape = SegmentedButtonDefaults.itemShape(index = idx, count = options.size)
-            ) { Text(label) }
+            ) {
+                Text(label, color = labelColor)
+            }
         }
     }
 }
@@ -287,7 +354,6 @@ private suspend fun pickDateTime(context: Context, current: Instant?): Instant? 
                     true
                 ).apply {
                     setOnCancelListener { safeResume(null) }
-                    // Aquí SÍ usamos onDismiss (si el usuario cierra sin elegir hora).
                     setOnDismissListener { if (!resumed) safeResume(null) }
                     show()
                 }
@@ -297,8 +363,6 @@ private suspend fun pickDateTime(context: Context, current: Instant?): Instant? 
             cal.get(Calendar.DAY_OF_MONTH)
         ).apply {
             setOnCancelListener { safeResume(null) }
-            // ⚠️ IMPORTANTE: NO pongas onDismiss aquí,
-            // se dispara también cuando confirmas y cerraría con null.
             show()
         }
 
@@ -307,7 +371,6 @@ private suspend fun pickDateTime(context: Context, current: Instant?): Instant? 
             try { timeDialog?.dismiss() } catch (_: Throwable) {}
         }
     }
-
 
 @RequiresApi(Build.VERSION_CODES.O)
 private fun formatInstant(i: Instant): String =

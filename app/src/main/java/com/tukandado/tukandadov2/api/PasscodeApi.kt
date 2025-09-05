@@ -23,7 +23,11 @@ data class PasscodeDto(
     val usage: UsageDto? = null,
     val external: ExternalDto? = null,
     val createdAt: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+
+    // NUEVO
+    val code: String? = null,            // PIN en claro normalizado (solo si plain=true)
+    val codeEnc: String? = null          // opcional: cifrado base64 si no devuelves 'code'
 )
 
 data class UsageDto(
@@ -60,6 +64,11 @@ data class UpdatePasscodeRequest(
 // DTO opcional de respuesta (puedes ignorarlo si devuelves 204)
 data class ResetByLockResponse(
     val affected: Int? = null
+)
+
+data class CreateBookingPasscodeRequest(
+    val code: String,
+    val name: String? = null
 )
 
 interface PasscodeApi {
@@ -106,8 +115,20 @@ interface PasscodeApi {
     ): Response<Unit>
 
     // POST /locks/{lockId}/passcodes/reset
-    @POST("locks/{lockId}/passcodes/reset")
+    @POST("passcodes/locks/{lockId}/passcodes/reset")
     suspend fun resetPasscodesByLock(
         @Path("lockId") lockId: String
     ): Response<ResetByLockResponse>
+
+    @POST("passcodes/booking")
+    suspend fun createBookingPasscode(
+        @Body body: CreateBookingPasscodeRequest
+    ): Response<PasscodeDto>
+
+    @GET("passcodes/booking/{bookingId}")
+    suspend fun getPasscodesForBooking(
+        @Path("bookingId") bookingId: String,
+        @Query("includeDeleted") includeDeleted: Boolean = false,
+        @Query("plain") plain: Boolean = true
+    ): Response<List<PasscodeDto>>
 }
