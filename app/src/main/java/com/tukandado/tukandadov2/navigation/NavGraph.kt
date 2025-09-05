@@ -1,11 +1,16 @@
 package com.tukandado.tukandadov2.navigation
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -13,6 +18,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.tukandado.tukandadov2.BuildConfig
 import com.tukandado.tukandadov2.data.SessionManager
+import com.tukandado.tukandadov2.ui.admin.ClubDetailScreen
+import com.tukandado.tukandadov2.ui.admin.ClubsScreen
 import com.tukandado.tukandadov2.ui.admin.ConfigurationScreen
 import com.tukandado.tukandadov2.ui.admin.EKeyScreen
 import com.tukandado.tukandadov2.ui.admin.PasscodeCreateScreen
@@ -21,12 +28,20 @@ import com.tukandado.tukandadov2.ui.admin.PasscodeListScreen
 import com.tukandado.tukandadov2.ui.admin.RFIDScreen
 import com.tukandado.tukandadov2.ui.admin.RegistersScreen
 import com.tukandado.tukandadov2.ui.booking.ActiveBookingScreen
+import com.tukandado.tukandadov2.ui.bookings.BookingsClientScreen
 import com.tukandado.tukandadov2.ui.components.layout.AdminLockControlScreen
 import com.tukandado.tukandadov2.ui.home.HomeScreen
 import com.tukandado.tukandadov2.ui.home.ProfileScreen
 import com.tukandado.tukandadov2.ui.lock.OpenLockScreen
 import com.tukandado.tukandadov2.ui.login.LoginScreen
+import com.tukandado.tukandadov2.ui.dashboard.DashboardScreen
+import com.tukandado.tukandadov2.ui.dashboard.DashboardClientScreen
+import com.tukandado.tukandadov2.viewmodel.BookingViewModel
+import com.tukandado.tukandadov2.viewmodel.PasscodeViewModel
+import kotlinx.coroutines.launch
 
+
+@SuppressLint("CoroutineCreationDuringComposition")
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun NavGraph(
@@ -35,6 +50,7 @@ fun NavGraph(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
+    val passcodeViewModel: PasscodeViewModel = viewModel()
 
     // Si estás maquetando, siembra sesión en debug
     LaunchedEffect(Unit) {
@@ -54,18 +70,21 @@ fun NavGraph(
         else -> "login"
     }
 
+    val scope = rememberCoroutineScope()
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { user ->
                     val active = user.activeBooking
                     if (active != null) {
+                        val encodedId = Uri.encode(active.lockId._id)
                         val encodedName = Uri.encode(active.lockId.lockName)
                         val encodedAlias = Uri.encode(active.lockId.lockAlias)
                         val encodedData = Uri.encode(active.lockId.lockData)
                         val encodedMac = Uri.encode(active.lockId.lockMac)
 
-                        navController.navigate("activeReservation/$encodedName/$encodedAlias/$encodedData/$encodedMac") {
+                        navController.navigate("activeReservation/$encodedId/$encodedName/$encodedAlias/$encodedData/$encodedMac") {
                             popUpTo("login") { inclusive = true }
                             launchSingleTop = true
                         }
@@ -79,14 +98,77 @@ fun NavGraph(
             )
         }
 
-        composable(Screen.Home.route) { OpenLockScreen(navController) }
-        composable(Screen.Locks.route) { OpenLockScreen(navController) }
+        composable(Screen.Home.route) {
+            // Lee el rol desde SessionManager (ROLE_KEY)
+            val role by sessionManager.getRole().collectAsState(initial = "client")
+            val isAdmin = role == "admin" || role == "superadmin"
+
+            if (isAdmin) {
+                // Dashboard de ADMIN (ya lo tienes)
+                DashboardScreen(navController, setHeaderAction)
+            } else {
+                // Dashboard de CLIENTE (nuevo)
+                DashboardClientScreen(navController, setHeaderAction)
+            }
+        }
+        composable(Screen.Locks.route) {
+            val context = LocalContext.current
+            val sessionManager = remember { SessionManager(context) }
+
+            val role by sessionManager.getRole().collectAsState(initial = "client")
+            val activeBooking by sessionManager.getActiveBooking().collectAsState(initial = null)
+
+            // Redirige automáticamente si es cliente y tiene reserva activa
+            LaunchedEffect(role, activeBooking?._id) {
+                val isAdmin = role == "admin" || role == "superadmin"
+                if (!isAdmin && activeBooking != null) {
+                    val ab = activeBooking!!
+                    val encodedId = Uri.encode(ab.lockId._id)
+                    val encodedName  = Uri.encode(ab.lockId.lockName)
+                    val encodedAlias = Uri.encode(ab.lockId.lockAlias)
+                    val encodedData  = Uri.encode(ab.lockId.lockData)
+                    val encodedMac   = Uri.encode(ab.lockId.lockMac)
+
+                    navController.navigate("activeReservation/$encodedId/$encodedName/$encodedAlias/$encodedData/$encodedMac") {
+                        launchSingleTop = true
+                    }
+                }
+            }
+            // Mientras redirige, no pintes nada. Si no hay reserva activa o es admin, muestra la lista.
+            val isAdmin = role == "admin" || role == "superadmin"
+            if (activeBooking != null && !isAdmin) {
+                // placeholder vacío durante la redirección
+                Box(Modifier.fillMaxSize())
+            } else {
+                OpenLockScreen(navController, setHeaderAction)
+            }
+        }
+
         composable(Screen.Clubs.route) { HomeScreen(navController) }
         composable(Screen.Profile.route) { ProfileScreen(navController) }
+        composable("bookings") {
+            BookingsClientScreen(navController, setHeaderAction)
+        }
 
         composable("configuration") { ConfigurationScreen(navController) }
         composable("registers") { RegistersScreen(navController) }
         composable("rfid") { RFIDScreen(navController) }
+
+        composable(Screen.Clubs.route) {
+            ClubsScreen(navController, setHeaderAction)
+        }
+
+        composable(
+            route = "club/{clubId}",
+            arguments = listOf(navArgument("clubId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val clubId = backStackEntry.arguments?.getString("clubId").orEmpty()
+            ClubDetailScreen(
+                clubId = clubId,
+                navController = navController,
+                setHeaderAction = setHeaderAction
+            )
+        }
         //composable("passwords") { PasscodeScreen() Screen(navController) }
 
         /*composable(
@@ -120,14 +202,16 @@ fun NavGraph(
         }
 
         composable(
-            route = "activeReservation/{lockName}/{lockAlias}/{lockData}/{lockMac}",
+            route = "activeReservation/{lockId}/{lockName}/{lockAlias}/{lockData}/{lockMac}",
             arguments = listOf(
+                navArgument("lockId") { type = NavType.StringType },
                 navArgument("lockName") { type = NavType.StringType },
                 navArgument("lockAlias") { type = NavType.StringType },
                 navArgument("lockData") { type = NavType.StringType },
                 navArgument("lockMac") { type = NavType.StringType }
             )
         ) { backStackEntry ->
+            val lockId = backStackEntry.arguments?.getString("lockId") ?: ""
             val lockName = backStackEntry.arguments?.getString("lockName") ?: ""
             val lockAlias = backStackEntry.arguments?.getString("lockAlias") ?: ""
             val lockData = backStackEntry.arguments?.getString("lockData") ?: ""
@@ -138,7 +222,25 @@ fun NavGraph(
                 lockAlias = lockAlias,
                 lockData = lockData,
                 lockMac = lockMac,
-                onRelease = { navController.popBackStack() }
+                onOpenPasscodes = {
+                    val encId   = Uri.encode(lockId)
+                    val encData = Uri.encode(lockData)
+                    val encMac  = Uri.encode(lockMac)
+                    navController.navigate("passcodes/create/$encId/$encData/$encMac")
+                },
+                onRelease = {
+                    scope.launch {
+                        // Llamada suspend
+                        sessionManager.clearActiveBooking()
+
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo("activeReservation/{lockId}/{lockName}/{lockAlias}/{lockData}/{lockMac}") {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
         }
 

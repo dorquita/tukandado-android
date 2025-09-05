@@ -1,15 +1,21 @@
 package com.tukandado.tukandadov2.viewmodel
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ttlock.bl.sdk.callback.DeletePasscodeCallback
 import com.tukandado.tukandadov2.api.*
 import com.tukandado.tukandadov2.data.SessionManager
+import com.tukandado.tukandadov2.ttlock.TTLockManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+
 
 class BookingViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
@@ -74,34 +80,62 @@ class BookingViewModel : ViewModel() {
         }
     }
 
-    fun endBooking(context: Context) {
-        viewModelScope.launch {
-            try {
-                val api = RetrofitInstance.getBookingApi(context)
+    @RequiresApi(Build.VERSION_CODES.O)
+    suspend fun endBooking(
+        context: Context,
+        lockData: String? = null,
+        lockMac: String? = null
+    ): Boolean {
+        return try {
+            _error.value = null
 
-                val booking = SessionManager(context).getActiveBooking().first()
-                Log.d("DiceComo7", booking.toString())
-
-                if (booking == null) {
-                    _error.value = "No hay ninguna reserva activa"
-                    Log.d("BookingViewModel", "Intento de finalizar sin reserva activa")
-                    return@launch
-                }
-
-                Log.d("BookingViewModel", "Finalizando reserva con ID: ${booking._id}")
-                val response = api.endBooking(booking._id)
-
-                if (response.isSuccessful) {
-                    SessionManager(context).clearActiveBooking()
-                    Log.d("BookingViewModel", "Reserva finalizada correctamente")
-                } else {
-                    _error.value = "Error al finalizar reserva: ${response.code()}"
-                    Log.e("BookingViewModel", _error.value!!)
-                }
-            } catch (e: Exception) {
-                _error.value = "Error al finalizar reserva: ${e.message}"
-                Log.e("BookingViewModel", _error.value!!, e)
+            val booking = SessionManager(context.applicationContext).getActiveBooking().first()
+            if (booking == null) {
+                _error.value = "No hay ninguna reserva activa"
+                return false
             }
+
+            // 1) (Opcional) Borrar el passcode en el candado por BLE ANTES de cerrar
+            if (!lockData.isNullOrBlank() && !lockMac.isNullOrBlank()) {
+                try {
+                    val passApi = RetrofitInstance.getPasscodeApi(context)
+                    val resp = passApi.getPasscodesForBooking(
+                        bookingId = booking._id,
+                        includeDeleted = false,
+                        plain = true   // necesitamos 'code' en claro
+                    )
+                    if (resp.isSuccessful) {
+                        val pin = resp.body().orEmpty().firstOrNull()?.code
+                        if (!pin.isNullOrBlank()) {
+                            // 👇 LLAMADA DIRECTA A LA SUSPEND (sin lambdas intermedias)
+                            val tt = TTLockManager(context)
+                            val ble = tt.deletePasscodeSuspend(pin, lockData, lockMac)
+                            if (!ble.isSuccess) {
+                                Log.w("BookingViewModel", "BLE: fallo borrando PIN ${ble.exceptionOrNull()?.message}")
+                            }
+                        }
+                    } else {
+                        Log.w("BookingViewModel", "No se pudo obtener el passcode: HTTP ${resp.code()}")
+                    }
+                } catch (e: Exception) {
+                    Log.w("BookingViewModel", "BLE error: ${e.message}")
+                }
+            }
+
+            // 2) Cerrar la reserva en backend
+            val api = RetrofitInstance.getBookingApi(context)
+            val response = api.endBooking(booking._id)
+            if (response.isSuccessful) {
+                SessionManager(context.applicationContext).clearActiveBooking()
+                true
+            } else {
+                _error.value = "Error al finalizar reserva: HTTP ${response.code()}"
+                false
+            }
+        } catch (e: Exception) {
+            _error.value = "Error al finalizar reserva: ${e.message}"
+            false
         }
     }
+
 }

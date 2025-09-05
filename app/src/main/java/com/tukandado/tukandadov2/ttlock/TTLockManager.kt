@@ -1,6 +1,7 @@
 package com.tukandado.tukandadov2.ttlock
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import com.ttlock.bl.sdk.api.ExtendedBluetoothDevice
 import com.ttlock.bl.sdk.api.TTLockClient
@@ -10,7 +11,6 @@ import com.ttlock.bl.sdk.entity.LockError
 import com.ttlock.bl.sdk.callback.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resumeWithException
 
 class TTLockManager(private val context: Context) {
     private val scannedLocks = mutableListOf<ExtendedBluetoothDevice>()
@@ -213,6 +213,8 @@ class TTLockManager(private val context: Context) {
         lockDataJson: String,
         lockMac: String
     ): Result<Unit> = suspendCancellableCoroutine { cont ->
+        Log.d("Los params que entran en el reset lockDataJson",lockDataJson)
+        Log.d("Los params que entran en el reset lockMac",lockMac)
         TTLockClient.getDefault().resetPasscode(
             lockDataJson,
             lockMac,

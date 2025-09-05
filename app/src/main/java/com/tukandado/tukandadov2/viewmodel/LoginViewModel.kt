@@ -38,7 +38,7 @@ class LoginViewModel : ViewModel() {
                 Log.d("LoginViewModel", "Respuesta asecas: $response")
                 Log.d("LoginViewModel", "Respuesta HTTP: ${response.code()}")
 
-                val user = response.body()
+                val user = response.body() // LoginResponse
                 Log.d("LoginViewModel", "Usuario recibido: $user")
 
                 val setCookieHeaders = response.headers().values("Set-Cookie")
@@ -58,16 +58,37 @@ class LoginViewModel : ViewModel() {
                 Log.d("LoginViewModel", "RefreshToken: $refreshToken")
 
                 if (accessToken != null && refreshToken != null && user != null) {
-                    SessionManager(context).saveUserEmail(user.email)
-                    SessionManager(context).saveRole(user.role)
-                    SessionManager(context).saveTokens(accessToken, refreshToken)
+                    val session = SessionManager(context)
+
+                    // Persistimos sesión básica
+                    session.saveUserEmail(user.email)
+                    session.saveRole(user.role)
+                    session.saveUserClub(user.clubId)
+                    session.saveTokens(accessToken, refreshToken)
+
+                    // 👇 NUEVO: guardar/limpiar activeBooking
+                    val active = user.activeBooking
+                    if (active != null) {
+                        runCatching {
+                            session.saveActiveBooking(active)
+                        }.onFailure {
+                            Log.e("LoginViewModel", "No se pudo guardar activeBooking", it)
+                        }
+                    } else {
+                        // si no viene reserva activa, limpia la anterior
+                        runCatching {
+                            session.clearActiveBooking()
+                        }.onFailure {
+                            Log.w("LoginViewModel", "No se pudo limpiar activeBooking (quizá no existía)", it)
+                        }
+                    }
 
                     _userData.value = user
                     _loginSuccess.value = true
                     Log.d("LoginViewModel", "Login correcto, sesión guardada.")
                 } else {
                     _errorMessage.value = "Faltan datos en la respuesta del servidor"
-                    Log.e("LoginViewModel", "Datos incompletos en la respuesta")
+                    Log.e("LoginViewModel", "Datos incompletos en la respuesta (tokens/usuario nulos)")
                 }
 
             } catch (e: Exception) {

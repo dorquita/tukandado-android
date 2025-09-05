@@ -1,6 +1,7 @@
 package com.tukandado.tukandadov2.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -13,14 +14,17 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "user_prefs")
 
+
 class SessionManager(private val context: Context) {
 
     companion object {
         private val USER_EMAIL_KEY = stringPreferencesKey("user_email")
+        private val USER_CLUB = stringPreferencesKey("user_club")
         private val ROLE_KEY = stringPreferencesKey("role_key")
         private val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
         private val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
         private val ACTIVE_BOOKING_KEY = stringPreferencesKey("active_booking")
+        private val IS_DARK_THEME_FLOW  = booleanPreferencesKey("is_dark_theme_flow")
     }
 
     // ---------- Setters básicos ----------
@@ -32,11 +36,19 @@ class SessionManager(private val context: Context) {
         context.dataStore.edit { it[USER_EMAIL_KEY] = userEmail }
     }
 
+    suspend fun saveUserClub(userClub: String) {
+        context.dataStore.edit { it[USER_CLUB] = userClub }
+    }
+
     suspend fun saveTokens(accessToken: String, refreshToken: String) {
         context.dataStore.edit {
             it[ACCESS_TOKEN_KEY] = accessToken
             it[REFRESH_TOKEN_KEY] = refreshToken
         }
+    }
+
+    suspend fun setDarkTheme(value: Boolean) {
+        context.dataStore.edit { it[IS_DARK_THEME_FLOW] = value }
     }
 
     suspend fun clearSession() {
@@ -55,6 +67,12 @@ class SessionManager(private val context: Context) {
 
     fun getRole(): Flow<String?> =
         context.dataStore.data.map { it[ROLE_KEY] }
+
+    fun getClub(): Flow<String?> =
+        context.dataStore.data.map { it[USER_CLUB] }
+
+    fun getDarkTheme(): Flow<Boolean?> =
+        context.dataStore.data.map { it[IS_DARK_THEME_FLOW] }
 
     // ---------- Sesión: helpers ----------
     /** Flow que emite true si hay tokens no vacíos */

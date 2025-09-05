@@ -49,7 +49,7 @@ fun AdminActionsGrid(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             //AdminActionButton(Icons.Outlined.VpnKey, "Llaves digitales", onEKeys)
-            AdminActionButton(Icons.Outlined.Password, "Contraseñas", onPasswords)
+            AdminActionButton(Icons.Outlined.Password, "Contraseñas", onPasswords, enabled = true)
             AdminActionButton(Icons.Outlined.Nfc, "Tarjetas RF", onRF)
         }
 
