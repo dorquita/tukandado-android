@@ -49,8 +49,10 @@ fun AdminActionsGrid(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             //AdminActionButton(Icons.Outlined.VpnKey, "Llaves digitales", onEKeys)
-            AdminActionButton(Icons.Outlined.Password, "Contraseñas", onPasswords, enabled = true)
-            AdminActionButton(Icons.Outlined.Nfc, "Tarjetas RF", onRF)
+            AdminActionButton(Icons.Outlined.Password,
+                "Contraseñas", onPasswords, enabled = true, "Codigos")
+            AdminActionButton(Icons.Outlined.Nfc,
+                "Tarjetas RFID", onRF, enabled = false, "Tarjetas")
         }
 
         Spacer(Modifier.height(16.dp))
@@ -60,8 +62,10 @@ fun AdminActionsGrid(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            AdminActionButton(Icons.Outlined.History, "Registros", onLogs)
-            AdminActionButton(Icons.Outlined.Settings, "Configuración", onConfig)
+            AdminActionButton(Icons.Outlined.History,
+                "Registros", onLogs, enabled = false, "Trazas")
+            AdminActionButton(Icons.Outlined.Settings, "Configuracion", onConfig,
+                enabled = false, "Ajustes")
         }
     }
 }

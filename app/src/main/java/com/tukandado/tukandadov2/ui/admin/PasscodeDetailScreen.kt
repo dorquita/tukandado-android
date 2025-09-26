@@ -5,8 +5,6 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,7 +13,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.tukandado.tukandadov2.api.PasscodeDto
 import com.tukandado.tukandadov2.ui.components.InfoRow
 import com.tukandado.tukandadov2.ui.components.StatusChip
 import com.tukandado.tukandadov2.ui.components.TypeChip
@@ -25,8 +22,6 @@ import com.tukandado.tukandadov2.viewmodel.PasscodeUiModal
 import com.tukandado.tukandadov2.viewmodel.PasscodeViewModel
 import android.widget.Toast
 import kotlinx.coroutines.launch
-
-
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,7 +47,16 @@ fun PasscodeDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
 
     // carga inicial del detalle
-    LaunchedEffect(passcodeId) { vm.getPasscodeById(context, passcodeId) }
+    LaunchedEffect(passcodeId) {
+        val r = vm.getPasscodeById(context, passcodeId)   // Result<PasscodeDto>
+        r.onSuccess { dto ->
+            vm.setSelectedPasscode(dto)                   // guarda todo, incluido dto.code
+            Log.d("PasscodeVM", "LOAD-OK id=${dto._id} codeLen=${dto.code?.length ?: 0}")
+        }.onFailure { e ->
+            Log.e("PasscodeVM", "LOAD-ERR id=$passcodeId ${e.message}", e)
+            // opcional: vm.showError("No se pudo cargar la contraseña")
+        }
+    }
 
     Scaffold { padding ->
         val doc = selected
@@ -151,11 +155,12 @@ fun PasscodeDetailScreen(
                     onClick = {
                         confirmRevoke = false
                         val doc = vm.selectedPasscode.value ?: return@TextButton
+                        val original = doc.code  // ← viene del backend
                         scope.launch {
                             val result = vm.revokePasscode(
                                 context = context,
                                 passcodeId = doc._id,
-                                originalCode = null,     // pásalo si lo tienes (BLE más fiable)
+                                originalCode = original,     // pásalo si lo tienes (BLE más fiable)
                                 lockDataJson = lockDataJson,
                                 lockMac = lockMac
                             )
@@ -186,11 +191,12 @@ fun PasscodeDetailScreen(
                 TextButton(onClick = {
                     confirmDelete = false
                     val doc = vm.selectedPasscode.value ?: return@TextButton
+                    val original = doc.code
                     scope.launch {
                         val result = vm.deletePasscode(
                             context = context,
                             passcodeId = doc._id,
-                            originalCode = null,        // si lo tienes, pásalo (mejor para BLE)
+                            originalCode = original,        // si lo tienes, pásalo (mejor para BLE)
                             lockDataJson = lockDataJson,
                             lockMac = lockMac
                         )

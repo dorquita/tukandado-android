@@ -2,6 +2,7 @@ package com.tukandado.tukandadov2.ui.components
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
@@ -13,66 +14,57 @@ import com.tukandado.tukandadov2.data.SessionManager
 fun BottomBar(navController: NavHostController) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
-
     val role by sessionManager.getRole().collectAsState(initial = "client")
     val isAdmin = role == "admin" || role == "superadmin"
 
     val items = if (isAdmin) {
-        listOf(
-            Screen.Home,     // Dashboard admin
-            Screen.Locks,    // Candados
-            Screen.Clubs,    // Clubs (solo admin)
-            Screen.Profile   // Perfil
-        )
+        listOf(Screen.Home, Screen.Locks, Screen.Clubs, Screen.Profile)
     } else {
-        listOf(
-            Screen.Home,     // Dashboard cliente
-            Screen.Locks,    // Candados / Reservar
-            Screen.Bookings, // Mis reservas (cliente)
-            Screen.Profile   // Perfil
-        )
+        listOf(Screen.Home, Screen.Locks, Screen.Bookings, Screen.Profile)
     }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // 👉 Ruta con params tal y como la declaraste en el NavGraph
     val activeReservationRoute =
         "activeReservation/{lockId}/{lockName}/{lockAlias}/{lockData}/{lockMac}"
-
     val isOnActiveReservation =
         currentDestination?.hierarchy?.any { it.route == activeReservationRoute } == true
 
-    // Mostrar la bottom bar si estás en cualquiera de las tabs o en activeReservation
     val showBottomBar = items.any { screen ->
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
     } || isOnActiveReservation
 
-    if (showBottomBar) {
-        NavigationBar {
-            items.forEach { screen ->
-                // Marcar como seleccionada la tab normal o, si estás en activeReservation,
-                // marcar “Candados” para mantener contexto.
-                val selectedInHierarchy =
-                    currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                val selectedWhenActiveReservation =
-                    isOnActiveReservation && screen.route == Screen.Locks.route
+    if (!showBottomBar) return
 
-                val selected = selectedInHierarchy || selectedWhenActiveReservation
+    // ⬇️ Oculta labels si el usuario tiene el texto muy grande
+    val fontScale = LocalConfiguration.current.fontScale
+    val showLabels = fontScale < 1.3f   // umbral; ajusta a 1.2–1.3 según te guste
 
-                NavigationBarItem(
-                    icon = { Icon(screen.icon, contentDescription = screen.title) },
-                    label = { Text(screen.title) },
-                    selected = selected,
-                    onClick = {
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+    NavigationBar {
+        items.forEach { screen ->
+            val selectedInHierarchy =
+                currentDestination?.hierarchy?.any { it.route == screen.route } == true
+            val selectedWhenActiveReservation =
+                isOnActiveReservation && screen.route == Screen.Locks.route
+            val selected = selectedInHierarchy || selectedWhenActiveReservation
+
+            NavigationBarItem(
+                icon = { Icon(screen.icon, contentDescription = screen.title) },
+                // ⬇️ Solo mostramos label si cabe; si no, solo icono
+                label = if (showLabels) {
+                    { Text(text = screen.title, maxLines = 1, softWrap = false) }
+                } else null,
+                alwaysShowLabel = showLabels,
+                selected = selected,
+                onClick = {
+                    navController.navigate(screen.route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                )
-            }
+                }
+            )
         }
     }
 }

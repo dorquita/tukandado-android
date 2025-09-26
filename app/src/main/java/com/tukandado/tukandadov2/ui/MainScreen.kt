@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,8 +19,18 @@ import com.tukandado.tukandadov2.ui.components.layout.HeaderBar
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun MainScreen() {
+fun MainScreen(initialRoute: String? = null) {
     val navController = rememberNavController()
+
+    // Navega una sola vez a la ruta inicial solicitada tras login
+    LaunchedEffect(initialRoute) {
+        if (!initialRoute.isNullOrBlank()) {
+            navController.navigate(initialRoute) {
+                popUpTo(0) { inclusive = true } // limpia backstack previo
+                launchSingleTop = true
+            }
+        }
+    }
 
     // 🔝 estado del botón del header
     var headerLabel by remember { mutableStateOf<String?>(null) }
@@ -46,6 +57,12 @@ fun MainScreen() {
                     headerLabel = label
                     headerEnabled = enabled
                     headerAction = onClick
+                },
+                onLoggedIn = { route ->   // ⬅️ AÑADIDO: manejar login también aquí
+                    navController.navigate(route) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }

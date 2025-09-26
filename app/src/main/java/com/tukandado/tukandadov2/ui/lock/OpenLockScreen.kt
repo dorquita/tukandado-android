@@ -1,5 +1,6 @@
 package com.tukandado.tukandadov2.ui.lock
 
+import CompactChip
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -210,12 +211,15 @@ fun LockListScreen(
                     },
                     label = { Text("Ocupados") }
                 )
-                FilterChip(
-                    selected = onlyGateway,
-                    onClick = { onlyGateway = !onlyGateway },
-                    label = { Text("Gateway") },
-                    leadingIcon = { Icon(Icons.Outlined.Hub, contentDescription = null) }
-                )
+                CompactChip {
+                    FilterChip(
+                        selected = onlyGateway,
+                        onClick = { onlyGateway = !onlyGateway },
+                        label = { Text("Gateway", maxLines = 1, softWrap = false) },
+                        leadingIcon = { Icon(Icons.Outlined.Hub, null) },
+                        modifier = Modifier.heightIn(min = 40.dp)
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
         }

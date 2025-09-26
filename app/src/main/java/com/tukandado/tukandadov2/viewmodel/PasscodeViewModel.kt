@@ -92,6 +92,10 @@ class PasscodeViewModel : ViewModel() {
         }
     }
 
+    fun setSelectedPasscode(dto: PasscodeDto) {
+        _selectedPasscode.value = dto
+    }
+
     /* -------- listado -------- */
     fun listPasscodes(
         context: Context,
@@ -135,10 +139,11 @@ class PasscodeViewModel : ViewModel() {
             _loading.value = true
             Log.d("PasscodeVM", "➡️ GET /passcodes/$passcodeId")
             val response = api(context).getPasscodeById(passcodeId)
-            Log.d("PasscodeVM", "⬅️ code=${response.code()} ok=${response.isSuccessful}")
+            Log.d("PasscodeVM", "respuesta get passcode=${response.code()} ok=${response.isSuccessful}")
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body != null) {
+                    Log.d("PasscodeVM", body.toString())
                     _selectedPasscode.value = body
                     _error.value = null
                     Result.success(body)
@@ -369,47 +374,108 @@ class PasscodeViewModel : ViewModel() {
         lockDataJson: String?,
         lockMac: String?
     ): Result<Unit> {
+        Log.d(
+            "PasscodeVM",
+            "deletePasscode inputs → passcodeId=$passcodeId, originalCode=$originalCode, lockDataJson=$lockDataJson, lockMac=$lockMac, BYPASS_LOGIN=${BuildConfig.BYPASS_LOGIN}"
+        )
+        val TAG = "PasscodeVM"
+        fun mask(s: String?, keep: Int = 4) = if (s.isNullOrBlank()) "null" else s.take(keep) + "…"
+        val macMasked = mask(lockMac, 5)
+
         _state.value = _state.value.copy(isLoading = true, modal = PasscodeUiModal.None)
+        Log.d(TAG, "DELETE-START id=$passcodeId mac=$macMasked bleInputs=" +
+                "code=${!originalCode.isNullOrBlank()} data=${!lockDataJson.isNullOrBlank()} mac=${!lockMac.isNullOrBlank()}")
+
         return try {
-            val canBt = !originalCode.isNullOrBlank() && !lockDataJson.isNullOrBlank() && !lockMac.isNullOrBlank() && !BuildConfig.BYPASS_LOGIN
+            val originalOk = !originalCode.isNullOrBlank()
+            val dataOk     = !lockDataJson.isNullOrBlank()
+            val macOk      = !lockMac.isNullOrBlank()
+            val bypass     = BuildConfig.BYPASS_LOGIN
+            val canBt      = originalOk && dataOk && macOk && !bypass
+
+            Log.d(TAG, "CANBT-CHECK " +
+                    "originalOk=$originalOk(${mask(originalCode)}), " +
+                    "dataOk=$dataOk(${mask(lockDataJson, 8)}), " +
+                    "macOk=$macOk(${mask(lockMac, 5)}), " +
+                    "BYPASS_LOGIN=$bypass -> canBt=$canBt")
+
+            // --- 1) Intento BLE (TTLock) ---
             if (canBt) {
-                Log.d("PasscodeVM", "🗑️ Delete (BLE) mac=$lockMac")
-                val del = TTLockManager(context).deletePasscodeSuspend(
-                    passcode = originalCode!!,
-                    lockDataJson = lockDataJson!!,
-                    lockMac = lockMac!!
-                )
-                del.fold(
-                    onSuccess = { /* ok */ },
+                Log.d(TAG, "BLE-DELETE-TRY mac=$macMasked")
+                val del = runCatching {
+                    TTLockManager(context).deletePasscodeSuspend(
+                        passcode = originalCode!!,
+                        lockDataJson = lockDataJson!!,
+                        lockMac = lockMac!!
+                    )
+                }.fold(
+                    onSuccess = { it },
                     onFailure = { err ->
-                        Log.w("PasscodeVM", "Delete fallo, intento revoke por endDate: ${err.message}")
+                        Log.w(TAG, "BLE-DELETE-ERR mac=$macMasked reason=${err.message}")
+                        Result.failure(err)
+                    }
+                )
+
+                del.fold(
+                    onSuccess = {
+                        Log.i(TAG, "BLE-DELETE-OK mac=$macMasked")
+                    },
+                    onFailure = { err ->
+                        // Si falla delete, intento acortar vigencia (revoke por fecha fin)
                         val endNow = System.currentTimeMillis() - 60_000L
-                        TTLockManager(context).modifyPasscodeSuspend(
-                            originalCode = originalCode,
-                            newCode = null,
-                            startDate = null,
-                            endDate = endNow,
-                            lockDataJson = lockDataJson,
-                            lockMac = lockMac
-                        ).getOrThrow()
+                        Log.w(TAG, "BLE-MODIFY-TRY endNow=$endNow mac=$macMasked")
+                        runCatching {
+                            TTLockManager(context).modifyPasscodeSuspend(
+                                originalCode = originalCode,
+                                newCode = null,
+                                startDate = null,
+                                endDate = endNow,
+                                lockDataJson = lockDataJson,
+                                lockMac = lockMac
+                            )
+                        }.fold(
+                            onSuccess = {
+                                Log.i(TAG, "BLE-MODIFY-OK mac=$macMasked")
+                            },
+                            onFailure = { modErr ->
+                                Log.e(TAG, "BLE-MODIFY-ERR mac=$macMasked reason=${modErr.message}", modErr)
+                            }
+                        )
                     }
                 )
             } else {
-                Log.w("PasscodeVM", "⚠️ Delete sin BLE (solo backend)")
+                Log.w(TAG, "BLE-SKIP (sin datos suficientes o BYPASS_LOGIN=true)")
             }
 
-            Log.d("PasscodeVM", "➡️ DELETE /passcodes/$passcodeId")
-            val resp = api(context).softDeletePasscode(passcodeId)
-            Log.d("PasscodeVM", "⬅️ Backend resp code=${resp.code()} isSuccessful=${resp.isSuccessful}")
-            if (!resp.isSuccessful && resp.code() != 204) {
-                return Result.failure(RuntimeException("Backend delete HTTP ${resp.code()}"))
+            // --- 2) Llamada a backend (soft delete) ---
+            Log.d(TAG, "HTTP-REQ DELETE /passcodes/$passcodeId mac=$macMasked")
+            val resp = runCatching { api(context).softDeletePasscode(passcodeId) }
+                .onFailure { t ->
+                    Log.e(TAG, "HTTP-ERR transport=${t::class.simpleName} msg=${t.message}", t)
+                }
+                .getOrElse { throw it }
+
+            val code = resp.code()
+            val ok = resp.isSuccessful || code == 204
+            val errBody = if (!ok) {
+                // ojo: .string() solo una vez; no lo vuelvas a leer fuera
+                runCatching { resp.errorBody()?.string() }.getOrNull()
+            } else null
+
+            Log.d(TAG, "HTTP-RESP code=$code isSuccessful=${resp.isSuccessful} hasBody=${resp.body()!=null} hasErr=${errBody!=null}")
+            if (!ok) {
+                Log.e(TAG, "HTTP-FAIL code=$code err=$errBody")
+                return Result.failure(RuntimeException("Backend delete HTTP $code"))
             }
 
-            // refresca listado
+            // --- 3) Refresco silencioso del listado (no rompemos si falla) ---
             runCatching { listPasscodes(context, page = _page.value) }
+                .onFailure { t -> Log.w(TAG, "LIST-REFRESH-ERR ${t.message}") }
+
+            Log.i(TAG, "DELETE-DONE id=$passcodeId mac=$macMasked")
             Result.success(Unit)
         } catch (e: Exception) {
-            Log.e("PasscodeVM", "❌ delete", e)
+            Log.e("PasscodeVM", "DELETE-UNCAUGHT ${e::class.simpleName}: ${e.message}", e)
             Result.failure(e)
         } finally {
             _state.value = _state.value.copy(isLoading = false)

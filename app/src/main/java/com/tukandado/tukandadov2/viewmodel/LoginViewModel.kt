@@ -87,7 +87,7 @@ class LoginViewModel : ViewModel() {
                     _loginSuccess.value = true
                     Log.d("LoginViewModel", "Login correcto, sesión guardada.")
                 } else {
-                    _errorMessage.value = "Faltan datos en la respuesta del servidor"
+                    _errorMessage.value = "Usuario contraseña incorrectos"
                     Log.e("LoginViewModel", "Datos incompletos en la respuesta (tokens/usuario nulos)")
                 }
 

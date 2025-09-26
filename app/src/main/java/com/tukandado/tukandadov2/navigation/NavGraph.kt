@@ -46,7 +46,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun NavGraph(
     navController: NavHostController,
-    setHeaderAction: (label: String?, enabled: Boolean, onClick: (() -> Unit)?) -> Unit = { _, _, _ -> }
+    setHeaderAction: (label: String?, enabled: Boolean, onClick: (() -> Unit)?) -> Unit = { _, _, _ -> },
+    onLoggedIn: (String) -> Unit = {} // ⬅️ nuevo parámetro
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
@@ -77,23 +78,19 @@ fun NavGraph(
             LoginScreen(
                 onLoginSuccess = { user ->
                     val active = user.activeBooking
-                    if (active != null) {
-                        val encodedId = Uri.encode(active.lockId._id)
-                        val encodedName = Uri.encode(active.lockId.lockName)
+                    val route = if (active != null) {
+                        val encodedId    = Uri.encode(active.lockId._id)
+                        val encodedName  = Uri.encode(active.lockId.lockName)
                         val encodedAlias = Uri.encode(active.lockId.lockAlias)
-                        val encodedData = Uri.encode(active.lockId.lockData)
-                        val encodedMac = Uri.encode(active.lockId.lockMac)
-
-                        navController.navigate("activeReservation/$encodedId/$encodedName/$encodedAlias/$encodedData/$encodedMac") {
-                            popUpTo("login") { inclusive = true }
-                            launchSingleTop = true
-                        }
+                        val encodedData  = Uri.encode(active.lockId.lockData)
+                        val encodedMac   = Uri.encode(active.lockId.lockMac)
+                        "activeReservation/$encodedId/$encodedName/$encodedAlias/$encodedData/$encodedMac"
                     } else {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo("login") { inclusive = true }
-                            launchSingleTop = true
-                        }
+                        Screen.Home.route
                     }
+                    // ⬅️ En lugar de navController.navigate(...) aquí,
+                    // subimos al root y navegamos allí dentro de MainScreen
+                    onLoggedIn(route)
                 }
             )
         }

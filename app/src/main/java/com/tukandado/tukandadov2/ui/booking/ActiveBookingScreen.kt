@@ -230,7 +230,7 @@ fun ActiveBookingScreen(
             Spacer(Modifier.height(12.dp))
 
             // Tarjeta de información útil durante la reserva
-            OutlinedCard(
+            /*OutlinedCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
@@ -243,11 +243,14 @@ fun ActiveBookingScreen(
                         }
                     }
                 )
-            }
+            }*/
             Spacer(Modifier.height(8.dp))
 
             // Acciones rápidas del cliente: Contraseñas y Tarjetas RF
             ClientActionsGrid(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
                 onPasswords = onOpenPasscodes,
                 onRF = onOpenRF
             )

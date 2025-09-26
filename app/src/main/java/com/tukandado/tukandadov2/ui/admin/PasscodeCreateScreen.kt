@@ -42,7 +42,12 @@ import androidx.compose.ui.draw.alpha
 import com.tukandado.tukandadov2.data.SessionManager
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import com.tukandado.tukandadov2.ttlock.TTLockManager
+import kotlin.math.min
 
 /**
  * Pantalla de creación de passcode.
@@ -248,17 +253,6 @@ fun PasscodeCreateScreen(
             )
         }
 
-        // Chip “Personalizado” solo Admin
-        if (isAdmin) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FilterChip(
-                    selected = isCustom,
-                    onClick = { isCustom = !isCustom },
-                    label = { Text("Personalizado") }
-                )
-            }
-        }
-
         if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error)
         }
@@ -277,23 +271,48 @@ private fun SegmentedButtons(
     onSelect: (String) -> Unit,
     disabled: Set<String> = emptySet()
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f
+
+    // Etiquetas abreviadas solo cuando hay zoom alto
+    val displayOptions = options.map { (value, label) ->
+        val short = when (value) {
+            "permanent" -> "Fijo"
+            "timebound" -> "Temp."
+            "one_time"  -> "Una vez"
+            else        -> label
+        }
+        value to if (compact) short else label
+    }
+
     SingleChoiceSegmentedButtonRow {
-        options.forEachIndexed { idx, (value, label) ->
+        displayOptions.forEachIndexed { idx, (value, label) ->
             val isDisabled = value in disabled
-            val buttonModifier = if (isDisabled) Modifier.alpha(0.5f) else Modifier
-            val labelColor = if (isDisabled)
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            else
-                MaterialTheme.colorScheme.onSurface
+            val mod = if (isDisabled) Modifier.alpha(0.5f) else Modifier
 
             SegmentedButton(
                 selected = selected == value,
                 onClick = { if (!isDisabled) onSelect(value) },
                 enabled = !isDisabled,
-                modifier = buttonModifier,
-                shape = SegmentedButtonDefaults.itemShape(index = idx, count = options.size)
+                shape = SegmentedButtonDefaults.itemShape(index = idx, count = displayOptions.size),
+                modifier = mod.heightIn(min = 40.dp) // altura estable
             ) {
-                Text(label, color = labelColor)
+                // Capamos SOLO aquí para que no rompa en 2 líneas
+                val d = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.12f))
+                ) {
+                    Text(
+                        text = label,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        color = if (isDisabled)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        else
+                            MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.tukandado.tukandadov2.ui.admin
 
+import CompactChip
 import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Build
@@ -8,9 +9,11 @@ import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Inbox
@@ -18,8 +21,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -306,17 +311,27 @@ private fun PasscodeRow(pc: PasscodeDto, onClick: () -> Unit) {
     ListItem(
         headlineContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(pc.name ?: "Código sin nombre", fontWeight = FontWeight.SemiBold)
+                Text(
+                    pc.name ?: "Código sin nombre",
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(Modifier.width(8.dp))
-                StatusChip(pc.status)
+                // Si StatusChip es estrecho, protégelo con CompactChip
+                CompactChip { StatusChip(pc.status) }
             }
         },
         supportingContent = {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TypeChip(pc.type)
+                // Chips en fila con scroll para que no salten de línea
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
+                    CompactChip { TypeChip(pc.type) }
                     Spacer(Modifier.width(8.dp))
-                    UsageChip(pc.usage?.count ?: 0)
+                    CompactChip { UsageChip(pc.usage?.count ?: 0) }
                 }
                 Spacer(Modifier.height(4.dp))
                 ValidityLine(validFrom = pc.validFrom, validTo = pc.validTo)
@@ -337,27 +352,76 @@ private fun FilterBar(
     statusFilter: String?,
     onStatusChange: (String?) -> Unit
 ) {
-    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         OutlinedTextField(
             value = q,
             onValueChange = onQuery,
-            label = { Text("Buscar por nombre") },
+            label = { Text("Buscar por nombre", maxLines = 1) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 56.dp)            // alto estable
                 .padding(horizontal = 12.dp, vertical = 12.dp)
         )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
 
-            StatusChoiceChip(current = statusFilter, value = null, label = "Todos", onSelect = onStatusChange)
-            StatusChoiceChip(current = statusFilter, value = "active", label = "Activos", onSelect = onStatusChange)
-            StatusChoiceChip(current = statusFilter, value = "expired", label = "Expirados", onSelect = onStatusChange)
-            StatusChoiceChip(current = statusFilter, value = "revoked", label = "Revocados", onSelect = onStatusChange)
+        // Fila de chips con scroll horizontal (no se apilan mal)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val labelTodos     = "Todos"
+            val labelActivos   = "Activos"
+            val labelExpirados = if (compact) "Expir." else "Expirados"
+            val labelRevocados = if (compact) "Revoc." else "Revocados"
+
+            Spacer(Modifier.width(0.dp)) // truco: primer chip pegado al borde
+
+            CompactChip {
+                FilterChip(
+                    selected = statusFilter == null,
+                    onClick = { onStatusChange(null) },
+                    label = { Text(labelTodos, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+
+            CompactChip {
+                FilterChip(
+                    selected = statusFilter == "active",
+                    onClick = { onStatusChange("active") },
+                    label = { Text(labelActivos, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+
+            CompactChip {
+                FilterChip(
+                    selected = statusFilter == "expired",
+                    onClick = { onStatusChange("expired") },
+                    label = { Text(labelExpirados, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+
+            CompactChip {
+                FilterChip(
+                    selected = statusFilter == "revoked",
+                    onClick = { onStatusChange("revoked") },
+                    label = { Text(labelRevocados, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+                )
+            }
         }
+
         Divider()
     }
 }

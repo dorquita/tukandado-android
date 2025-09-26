@@ -27,6 +27,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,16 +35,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.tukandado.tukandadov2.BuildConfig
 import com.tukandado.tukandadov2.data.SessionManager
 import com.tukandado.tukandadov2.viewmodel.LoginViewModel
 import kotlinx.coroutines.launch
+import no.nordicsemi.android.dfu.BuildConfig
+import kotlin.math.min
 
 @Composable
 fun ProfileScreen(navController: NavController) {
@@ -73,6 +79,9 @@ fun ProfileScreen(navController: NavController) {
     // Diálogo de diagnóstico (placeholder)
     var showDiag by remember { mutableStateOf(false) }
 
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,46 +94,59 @@ fun ProfileScreen(navController: NavController) {
 
         // ----- Cuenta -----
         ElevatedCard(shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Avatar sencillo
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = role?.first()?.uppercase() ?: "",
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(name.toString(), style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            when (role) {
-                                "superadmin" -> "Superadministrador"
-                                "admin" -> "Administrador"
-                                else -> "Cliente"
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    RoleBadge(role.toString())
-                }
-
-                if (isAdmin) {
-                    // Selector de centro (dropdown sencillo)
-                    ClubDropdownField(
-                        label = "Centro activo",
-                        value = selectedClub,
-                        options = clubOptions,
-                        onSelected = { selectedClub = it }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Avatar sencillo con inicial del rol (opcional)
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = (role ?: "c").first().uppercase(),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
                 }
+
+                Spacer(Modifier.width(12.dp))
+
+                // Email + rol
+                Column(Modifier.weight(1f)) {
+                    // capar fontScale SOLO aquí para que no se rompa en 2 líneas
+                    val d = LocalDensity.current
+                    CompositionLocalProvider(
+                        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.10f))
+                    ) {
+                        Text(
+                            text = name.orEmpty(),                      // email
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Text(
+                        when (role) {
+                            "superadmin" -> "Superadministrador"
+                            "admin"      -> "Administrador"
+                            else         -> "Cliente"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Chip de rol a la derecha
+                RoleBadge(role = role ?: "client", compact = compact)
             }
         }
 
@@ -235,34 +257,29 @@ fun ProfileScreen(navController: NavController) {
 /* --------------------------- COMPONENTES --------------------------- */
 
 @Composable
-private fun RoleBadge(role: String) {
+private fun RoleBadge(role: String, compact: Boolean = false) {
     val (bg, fg, label) = when (role) {
-        "superadmin" -> Triple(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-            MaterialTheme.colorScheme.primary,
-            "Superadmin"
-        )
-        "admin" -> Triple(
-            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-            MaterialTheme.colorScheme.tertiary,
-            "Admin"
-        )
-        else -> Triple(
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant,
-            "Cliente"
-        )
+        "superadmin" -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary, "Superadmin")
+        "admin"      -> Triple(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), MaterialTheme.colorScheme.tertiary, "Admin")
+        else         -> Triple(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, "Cliente")
     }
-    androidx.compose.material3.Surface(
-        color = bg,
-        shape = RoundedCornerShape(999.dp)
+
+    // capar fontScale SOLO aquí para que el chip no reviente
+    val d = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.15f))
     ) {
-        Text(
-            text = label,
-            color = fg,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium
-        )
+        Surface(color = bg, shape = RoundedCornerShape(999.dp)) {
+            Text(
+                text = label,
+                color = fg,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -274,30 +291,32 @@ private fun ClubDropdownField(
     onSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            leadingIcon = { Icon(Icons.Outlined.Place, contentDescription = null) },
-            trailingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = {
-                        onSelected(opt)
-                        expanded = false
-                    }
-                )
+
+    // capar fontScale SOLO dentro del campo
+    val d = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.15f))
+    ) {
+        Box {
+            OutlinedTextField(
+                value = value,
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,                         // ⬅️ una línea
+                label = { Text(label, maxLines = 1) },
+                leadingIcon = { Icon(Icons.Outlined.Place, null) },
+                trailingIcon = { Icon(Icons.Outlined.Info, null) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)               // ⬅️ alto estable M3
+                    .clickable { expanded = true }
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { opt ->
+                    DropdownMenuItem(text = { Text(opt) }, onClick = {
+                        onSelected(opt); expanded = false
+                    })
+                }
             }
         }
     }
@@ -310,64 +329,63 @@ private fun LanguageDropdown(
     onSelected: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {},
-            readOnly = true,
-            leadingIcon = { Icon(Icons.Outlined.Language, contentDescription = null) },
-            trailingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
-            modifier = Modifier
-                .widthIn(min = 160.dp)
-                .clickable { expanded = true }
-        )
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = {
-                        onSelected(opt)
-                        expanded = false
-                    }
-                )
+    val d = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.15f))
+    ) {
+        Box {
+            OutlinedTextField(
+                value = value,
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                leadingIcon = { Icon(Icons.Outlined.Language, null) },
+                trailingIcon = { Icon(Icons.Outlined.Info, null) },
+                modifier = Modifier
+                    .fillMaxWidth()            // ⬅️ ocupa ancho, no rompe
+                    .heightIn(min = 56.dp)
+                    .clickable { expanded = true }
+            )
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { opt ->
+                    DropdownMenuItem(text = { Text(opt) }, onClick = {
+                        onSelected(opt); expanded = false
+                    })
+                }
             }
         }
     }
 }
 
+
 @Composable
 private fun SettingRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     subtitle: String? = null,
     trailing: @Composable () -> Unit = {}
 ) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
+        Modifier.fillMaxWidth().padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
+            modifier = Modifier.size(36.dp).clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        ) { Icon(icon, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+
         Spacer(Modifier.width(12.dp))
+
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (subtitle != null) {
-                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        trailing()
+
+        // deja que el trailing mida, pero sin empujar texto a otra línea
+        Box(Modifier.padding(start = 8.dp)) { trailing() }
     }
 }
 

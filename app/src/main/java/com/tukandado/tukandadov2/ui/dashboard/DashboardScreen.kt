@@ -42,8 +42,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -81,7 +83,7 @@ data class DashboardKpis(
     val activeBookings: Int = 0,
     val offlineLocks: Int = 0,
     val lowBatteries: Int = 0,
-    val passcodes24h: Int = 0
+    val contraseñas24h: Int = 0
 )
 
 data class DashboardState(
@@ -112,7 +114,7 @@ class DashboardViewModel : ViewModel() {
                     activeBookings = 12,
                     offlineLocks = 1,
                     lowBatteries = 3,
-                    passcodes24h = 26
+                    contraseñas24h = 26
                 ),
                 alerts = listOf(
                     AlertItem(
@@ -135,8 +137,8 @@ class DashboardViewModel : ViewModel() {
                     )
                 ),
                 activity = listOf(
-                    ActivityItem("a1", "Reset de passcodes (zona A)", now.minusSeconds(60 * 20), "por Admin"),
-                    ActivityItem("a2", "Passcode creado: vestuario B · #22516532", now.minusSeconds(60 * 60), "por Pau"),
+                    ActivityItem("a1", "Reset de contraseñas (zona A)", now.minusSeconds(60 * 20), "por Admin"),
+                    ActivityItem("a2", "Contraseña creada: vestuario B · #22516532", now.minusSeconds(60 * 60), "por Pau"),
                     ActivityItem("a3", "Incidencia cerrada: cerradura 12", now.minusSeconds(60 * 120), "Soporte"),
                 )
             )
@@ -163,6 +165,9 @@ fun DashboardScreen(
     val context = LocalContext.current
     val s = vm.state
 
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f   // umbral de “zoom muy grande”
+
     // Botón de acción del HeaderBar
     LaunchedEffect(s.isLoading) {
         setHeaderAction("Refrescar", !s.isLoading) { vm.refresh(context) }
@@ -181,16 +186,15 @@ fun DashboardScreen(
             .verticalScroll(rememberScrollState()), // <-- scroll vertical añadido
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        if (s.isLoading) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
+        if (s.isLoading) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
 
         // KPIs
-        KpiRow(k = s.kpis)
+        KpiRow(k = s.kpis, compact = compact)
 
         // Alertas
         AlertsSection(
             alerts = s.alerts,
+            compact = compact,
             onAcknowledge = { vm.acknowledgeAlert(it) },
             onPrimary = { /* navega a candados/diagnóstico según CTA si quieres */ }
         )
@@ -198,31 +202,34 @@ fun DashboardScreen(
         // Accesos rápidos
         QuickActionsRow(
             items = listOf(
-                QuickAction(
+                /*QuickAction(
                     icon = Icons.Outlined.Key,
                     label = "Crear passcode",
-                    onClick = { /* navController.navigate("passcodes/…") o selector de lock */ }
+                    onClick = { /* navController.navigate("contraseñas/…") o selector de lock */ }
                 ),
                 QuickAction(
                     icon = Icons.Outlined.Refresh,
-                    label = "Reset passcodes",
+                    label = "Reset contraseñas",
                     onClick = { /* confirm + reset centro / selección múltiple */ }
-                ),
+                ),*/
                 QuickAction(
                     icon = Icons.Outlined.Add,
                     label = "Añadir candado",
-                    onClick = { /* nav a flujo de alta (BLE scan) */ }
+                    onClick = { /* nav a flujo de alta (BLE scan) */ },
+                    enabled = false
                 ),
                 QuickAction(
                     icon = Icons.Outlined.CloudDownload,
                     label = "Exportar registros",
-                    onClick = { /* export CSV */ }
+                    onClick = { /* export CSV */ },
+                    enabled = false
                 )
-            )
+            ),
+            compact = compact
         )
 
         // Actividad reciente
-        ActivitySection(items = s.activity)
+        ActivitySection(items = s.activity, compact = compact)
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -232,44 +239,17 @@ fun DashboardScreen(
  * ------------------------------------------------------------------------------------------------*/
 
 @Composable
-private fun KpiRow(k: DashboardKpis) {
+private fun KpiRow(k: DashboardKpis, compact: Boolean) {
     val scroll = rememberScrollState()
     Row(
-        Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scroll),
+        Modifier.fillMaxWidth().horizontalScroll(scroll),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        KpiCard(
-            icon = Icons.Outlined.Assessment,
-            title = "Ocupación",
-            value = "${k.occupancyPct}%",
-            accent = MaterialTheme.colorScheme.primary
-        )
-        KpiCard(
-            icon = Icons.Outlined.History,
-            title = "Reservas activas",
-            value = "${k.activeBookings}",
-            accent = MaterialTheme.colorScheme.tertiary
-        )
-        KpiCard(
-            icon = Icons.Outlined.Bolt,
-            title = "Batería baja",
-            value = "${k.lowBatteries}",
-            accent = MaterialTheme.colorScheme.error
-        )
-        KpiCard(
-            icon = Icons.Outlined.BugReport,
-            title = "Offline",
-            value = "${k.offlineLocks}",
-            accent = MaterialTheme.colorScheme.error
-        )
-        KpiCard(
-            icon = Icons.Outlined.AutoAwesome,
-            title = "Passcodes (24h)",
-            value = "${k.passcodes24h}",
-            accent = MaterialTheme.colorScheme.secondary
-        )
+        KpiCard(Icons.Outlined.Assessment, "Ocupación", "${k.occupancyPct}%", MaterialTheme.colorScheme.primary, compact)
+        KpiCard(Icons.Outlined.History, "Reservas activas", "${k.activeBookings}", MaterialTheme.colorScheme.tertiary, compact)
+        KpiCard(Icons.Outlined.Bolt, "Batería baja", "${k.lowBatteries}", MaterialTheme.colorScheme.error, compact)
+        KpiCard(Icons.Outlined.BugReport, "Offline", "${k.offlineLocks}", MaterialTheme.colorScheme.error, compact)
+        KpiCard(Icons.Outlined.AutoAwesome, "Contraseñas (24h)", "${k.contraseñas24h}", MaterialTheme.colorScheme.secondary, compact)
     }
 }
 
@@ -278,33 +258,43 @@ private fun KpiCard(
     icon: ImageVector,
     title: String,
     value: String,
-    accent: Color
+    accent: Color,
+    compact: Boolean
 ) {
     ElevatedCard(
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             Modifier
-                .padding(16.dp)
-                .widthIn(min = 180.dp),
+                .padding(if (compact) 12.dp else 16.dp)
+                .widthIn(min = if (compact) 140.dp else 180.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(if (compact) 36.dp else 42.dp)
                     .clip(CircleShape)
                     .background(accent.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) { Icon(icon, contentDescription = null, tint = accent) }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(if (compact) 8.dp else 12.dp))
 
             Column {
-                Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(value, style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold))
+                Text(
+                    title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    value,
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
             }
         }
     }
@@ -313,6 +303,7 @@ private fun KpiCard(
 @Composable
 private fun AlertsSection(
     alerts: List<AlertItem>,
+    compact: Boolean,
     onAcknowledge: (String) -> Unit,
     onPrimary: (AlertItem) -> Unit
 ) {
@@ -326,9 +317,7 @@ private fun AlertsSection(
                 )
             }
         } else {
-            alerts.forEach { a ->
-                AlertRow(item = a, onAcknowledge = onAcknowledge, onPrimary = onPrimary)
-            }
+            alerts.forEach { a -> AlertRow(a, compact, onAcknowledge, onPrimary) }
         }
     }
 }
@@ -336,6 +325,7 @@ private fun AlertsSection(
 @Composable
 private fun AlertRow(
     item: AlertItem,
+    compact: Boolean,
     onAcknowledge: (String) -> Unit,
     onPrimary: (AlertItem) -> Unit
 ) {
@@ -345,40 +335,63 @@ private fun AlertRow(
         AlertSeverity.INFO     -> MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) to MaterialTheme.colorScheme.primary
     }
 
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = bg
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(fg.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.Outlined.Security, contentDescription = null, tint = fg) }
+    Surface(shape = RoundedCornerShape(16.dp), color = bg) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
 
-            Spacer(Modifier.width(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(fg.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Outlined.Security, contentDescription = null, tint = fg) }
 
-            Column(Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                item.subtitle?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(12.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = if (compact) 2 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    item.subtitle?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = if (compact) 2 else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (!compact) {
+                    if (!item.ctaLabel.isNullOrBlank()) {
+                        TextButton(onClick = { onPrimary(item) }) { Text(item.ctaLabel!!) }
+                    }
+                    TextButton(
+                        onClick = { onAcknowledge(item.id) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("Ocultar") }
                 }
             }
 
-            if (!item.ctaLabel.isNullOrBlank()) {
-                TextButton(onClick = { onPrimary(item) }) { Text(item.ctaLabel!!) }
+            if (compact) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!item.ctaLabel.isNullOrBlank()) {
+                        TextButton(onClick = { onPrimary(item) }) {
+                            Text(item.ctaLabel!!, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    TextButton(
+                        onClick = { onAcknowledge(item.id) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("Ocultar", maxLines = 1, softWrap = false) }
+                }
             }
-            TextButton(
-                onClick = { onAcknowledge(item.id) },
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-            ) { Text("Ocultar") }
         }
     }
 }
@@ -391,87 +404,86 @@ data class QuickAction(
 )
 
 @Composable
-private fun QuickActionsRow(items: List<QuickAction>) {
+private fun QuickActionsRow(items: List<QuickAction>, compact: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("Accesos rápidos")
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items.take(2).forEach { QuickActionButton(it) }
-        }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items.drop(2).take(2).forEach { QuickActionButton(it) }
+
+        if (compact) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items.forEach { QuickActionButton(it, modifier = Modifier.fillMaxWidth()) }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items.take(2).forEach { QuickActionButton(it, modifier = Modifier.weight(1f)) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items.drop(2).take(2).forEach { QuickActionButton(it, modifier = Modifier.weight(1f)) }
+            }
         }
     }
 }
 
 @Composable
-private fun QuickActionButton(item: QuickAction) {
-    val disabledAlpha = 0.45f
+private fun QuickActionButton(item: QuickAction, modifier: Modifier = Modifier) {
     FilledTonalButton(
         onClick = item.onClick,
         enabled = item.enabled,
-        //modifier = if (item.enabled) Modifier.weight(1f) else Modifier.weight(1f).alpha(disabledAlpha),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         shape = RoundedCornerShape(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(item.icon, contentDescription = item.label)
             Spacer(Modifier.width(10.dp))
-            Text(item.label, style = MaterialTheme.typography.labelLarge)
+            Text(item.label, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
+
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-private fun ActivitySection(items: List<ActivityItem>) {
+private fun ActivitySection(items: List<ActivityItem>, compact: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("Actividad reciente")
         if (items.isEmpty()) {
             OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
                 ListItem(
                     headlineContent = { Text("Sin actividad") },
-                    supportingContent = { Text("Aquí verás resets, altas/bajas de passcodes e incidencias.") }
+                    supportingContent = { Text("Aquí verás resets, altas/bajas de contraseñas e incidencias.") }
                 )
             }
-        } else {
-            items.forEach { ActivityRow(it) }
-        }
+        } else items.forEach { ActivityRow(it, compact) }
     }
 }
 
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-private fun ActivityRow(i: ActivityItem) {
-    OutlinedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+private fun ActivityRow(i: ActivityItem, compact: Boolean) {
+    OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         ListItem(
             leadingContent = {
                 Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                ) { Icon(Icons.Outlined.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) }
             },
-            headlineContent = { Text(i.title, style = MaterialTheme.typography.bodyLarge) },
+            headlineContent = {
+                Text(i.title, style = MaterialTheme.typography.bodyLarge, maxLines = if (compact) 1 else 2, overflow = TextOverflow.Ellipsis)
+            },
             supportingContent = {
                 val whenTxt = formatInstant(i.whenTs)
-                Text(listOfNotNull(whenTxt, i.meta).joinToString(" • "), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    listOfNotNull(whenTxt, i.meta).joinToString(" • "),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         )
     }
 }
+
 
 @Composable
 private fun SectionHeader(text: String) {

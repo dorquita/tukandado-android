@@ -1,11 +1,14 @@
 package com.tukandado.tukandadov2.ui.admin
 
+import CompactChip
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,8 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -30,6 +36,7 @@ import java.time.Instant.now
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlin.math.min
 
 /* -----------------------------------------------------------
  * DATA & STATE
@@ -157,12 +164,14 @@ fun ClubsScreen(
                     )
                 }
             )
-            FilterChip(
-                selected = s.onlyGateway,
-                onClick = vm::toggleGateway,
-                label = { Text("Con gateway") },
-                leadingIcon = { Icon(Icons.Outlined.Hub, contentDescription = null) }
-            )
+            CompactChip{
+                FilterChip(
+                    selected = s.onlyGateway,
+                    onClick = vm::toggleGateway,
+                    label = { Text("Con gateway") },
+                    leadingIcon = { Icon(Icons.Outlined.Hub, contentDescription = null) }
+                )
+            }
         }
 
         if (s.isLoading) {
@@ -218,6 +227,9 @@ private fun ClubCard(
     onOpenLocks: () -> Unit,
     onOpenDetail: () -> Unit
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f  // umbral de zoom “abuelo”
+
     ElevatedCard(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
@@ -245,19 +257,37 @@ private fun ClubCard(
                     }
                     Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                StatusBadge(offline = club.locksOffline, lowBat = club.lowBatteries)
+                StatusBadge(offline = club.locksOffline, lowBat = club.lowBatteries, compact = compact)
             }
 
             // KPIs inline
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                KpiPill(Icons.Outlined.Lock, "${club.locksTotal}", "Candados")
-                KpiPill(Icons.Outlined.PowerOff, "${club.locksOffline}", "Offline", highlight = club.locksOffline > 0)
-                KpiPill(Icons.Outlined.BatteryAlert, "${club.lowBatteries}", "<20%", highlight = club.lowBatteries > 0)
-                KpiPill(Icons.Outlined.Hub, if (club.hasGateway) "Sí" else "No", "Gateway", highlight = !club.hasGateway)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                KpiPill(Icons.Outlined.Lock, "${club.locksTotal}", "Candados", compact = compact)
+                KpiPill(Icons.Outlined.PowerOff, "${club.locksOffline}", "Offline",
+                    highlight = club.locksOffline > 0, compact = compact)
+                KpiPill(Icons.Outlined.BatteryAlert, "${club.lowBatteries}", "<20%",
+                    highlight = club.lowBatteries > 0, compact = compact)
+                KpiPill(Icons.Outlined.Hub, if (club.hasGateway) "Sí" else "No", "Gateway",
+                    highlight = !club.hasGateway, compact = compact)
             }
 
             // Ocupación
-            Text("Ocupación", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Ocupación", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (compact) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("${club.occupancyPct}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (!compact) {
+                Text("${club.occupancyPct}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
             LinearProgressIndicator(
                 progress = { (club.occupancyPct.coerceIn(0, 100) / 100f) },
                 modifier = Modifier.fillMaxWidth().height(8.dp),
@@ -266,32 +296,49 @@ private fun ClubCard(
             Text("${club.occupancyPct}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
             // Footer acciones
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilledTonalButton(onClick = onOpenLocks, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Lock, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Ver")
-                }
-                TextButton(onClick = onOpenDetail) {
-                    Text("Detalles")
-                }
-                if (club.phone != null) {
-                    val disabled = true // placeholder (si más adelante llamas por intent)
-                    TextButton(
-                        onClick = { /* launch dialer */ },
-                        enabled = !disabled,
-                        modifier = if (disabled) Modifier.alpha(0.5f) else Modifier
+            if (compact) {
+                Column(
+                    Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledTonalButton(onClick = onOpenLocks, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Outlined.Lock, contentDescription = null); Spacer(Modifier.width(8.dp)); Text("Ver candados", maxLines = 1)
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.Call, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Contacto")
+                        TextButton(onClick = onOpenDetail, modifier = Modifier.weight(1f)) {
+                            Text("Detalles", maxLines = 1, softWrap = false)
+                        }
+                        if (club.phone != null) {
+                            TextButton(onClick = { /* dialer */ }, modifier = Modifier.weight(1f), enabled = false) {
+                                Icon(Icons.Outlined.Call, contentDescription = null); Spacer(Modifier.width(6.dp)); Text("Contacto", maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilledTonalButton(onClick = onOpenLocks, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.Lock, contentDescription = null)
+                        Spacer(Modifier.width(8.dp)); Text("Ver")
+                    }
+                    TextButton(onClick = onOpenDetail) { Text("Detalles") }
+                    if (club.phone != null) {
+                        TextButton(onClick = { /* dialer */ }, enabled = false) {
+                            Icon(Icons.Outlined.Call, contentDescription = null)
+                            Spacer(Modifier.width(6.dp)); Text("Contacto")
+                        }
                     }
                 }
             }
+
 
             // Meta
             Text(
@@ -308,49 +355,90 @@ private fun KpiPill(
     icon: ImageVector,
     value: String,
     label: String,
-    highlight: Boolean = false
+    highlight: Boolean = false,
+    compact: Boolean = false
 ) {
-    val bg = if (highlight) MaterialTheme.colorScheme.error.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant
-    val fg = if (highlight) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-    Surface(
-        color = bg,
-        shape = RoundedCornerShape(12.dp)
+    // capamos fontScale SOLO en la píldora
+    val d = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.15f))
     ) {
-        Row(
-            Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            tonalElevation = if (highlight) 2.dp else 0.dp,
+            color = if (highlight) MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
         ) {
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Column {
-                Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = fg)
+            Row(
+                Modifier
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .heightIn(min = 36.dp), // tactilidad
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, contentDescription = null,
+                    tint = if (highlight) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    value,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1, softWrap = false
+                )
+                if (!compact) {
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
 }
 
+
 @Composable
-private fun StatusBadge(offline: Int, lowBat: Int) {
-    val critical = offline > 0
-    val warn = !critical && lowBat > 0
-    val (bg, fg, txt) = when {
-        critical -> Triple(MaterialTheme.colorScheme.error.copy(alpha = 0.15f), MaterialTheme.colorScheme.error, "Incidencias")
-        warn     -> Triple(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f), MaterialTheme.colorScheme.tertiary, "Atención")
-        else     -> Triple(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary, "OK")
+private fun StatusBadge(offline: Int, lowBat: Int, compact: Boolean) {
+    val text = when {
+        offline > 0 || lowBat > 0 -> if (compact) "Incid." else "Incidencias"
+        else -> if (compact) "OK" else "Sin incidencias"
     }
-    Surface(color = bg, shape = RoundedCornerShape(999.dp)) {
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            val icon = when {
-                critical -> Icons.Outlined.ReportGmailerrorred
-                warn     -> Icons.Outlined.ReportProblem
-                else     -> Icons.Outlined.Verified
+
+    // capar fontScale SOLO aquí para que no se rompa el chip
+    val d = LocalDensity.current
+    CompositionLocalProvider(
+        LocalDensity provides Density(d.density, fontScale = min(d.fontScale, 1.15f))
+    ) {
+        Surface(
+            color = if (offline > 0 || lowBat > 0) MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+            else MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(999.dp)
+        ) {
+            Row(
+                Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ErrorOutline,
+                    contentDescription = null,
+                    tint = if (offline > 0 || lowBat > 0) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
-            Icon(icon, contentDescription = null, tint = fg, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(txt, color = fg, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
+
 
 @Composable
 private fun EmptyState() {

@@ -60,23 +60,25 @@ class MainActivity : ComponentActivity() {
             TukandadoV2Theme(darkTheme = isDark, dynamicColor = true) {
                 val navController = rememberNavController()
                 var isLoggedIn by remember { mutableStateOf<Boolean?>(null) }
-
-                Log.d("IsLoggedIn:", isLoggedIn.toString())
+                var initialRouteAfterLogin by remember { mutableStateOf<String?>(null) } // ⬅️ NUEVO
 
                 LaunchedEffect(Unit) {
-                    /*val token = SessionManager(applicationContext).getAccessToken().first()
-                    Log.d("token:", token.toString())
-                    isLoggedIn = token != null*/
-
                     val sm = SessionManager(applicationContext)
-                    isLoggedIn = sm.hasValidSessionOnce() // comprueba access y refresh no vacíos
+                    isLoggedIn = sm.hasValidSessionOnce()
                     keepSplash = false
                 }
 
                 when (isLoggedIn) {
-                    true -> MainScreen()
+                    true -> MainScreen(initialRoute = initialRouteAfterLogin).also {
+                        // evita re-navegar en recomposiciones
+                        initialRouteAfterLogin = null
+                    }
                     false -> {
-                        NavGraph(navController = navController)
+                        // ⬇️ PASA ESTE LAMBDA
+                        NavGraph(navController = navController, onLoggedIn = { route ->          // ⬅️ NUEVO callback con ruta
+                            initialRouteAfterLogin = route // guarda dónde ir (Home o activeReservation/...)
+                            isLoggedIn = true              // dispara el “root switch” a MainScreen()
+                        })
                     }
                     null -> Text("Cargando...")
                 }

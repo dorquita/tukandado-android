@@ -27,30 +27,36 @@ fun ClientActionsGrid(
             .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
+        // Separador con margen razonable
         HorizontalDivider(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 40.dp),
+                .padding(top = 16.dp, bottom = 16.dp),
             thickness = 1.dp,
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             AdminActionButton(
                 icon = Icons.Outlined.Password,
                 label = "Contraseñas",
+                shortLabel = "Códigos",      // se usa solo si hay zoom alto (si aplicaste mi versión)
                 onClick = onPasswords,
-                enabled = true
+                enabled = true,
+                modifier = Modifier.weight(1f) // ⬅️ asegura que entra
             )
+
             AdminActionButton(
                 icon = Icons.Outlined.Nfc,
                 label = "Tarjetas RF",
+                shortLabel = "Tarj. RF",
                 onClick = onRF,
-                enabled = false
+                enabled = false,              // grisado pero visible
+                modifier = Modifier.weight(1f)
             )
         }
     }

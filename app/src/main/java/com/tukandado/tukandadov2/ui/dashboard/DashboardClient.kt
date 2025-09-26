@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Place
@@ -36,7 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -206,7 +209,7 @@ fun DashboardClientScreen(
         )
 
         // Accesos rápidos
-        QuickActionsRow(
+        /*QuickActionsRow(
             items = listOf(
                 QuickActionClient(icon = Icons.Outlined.CalendarMonth, label = "Reservar", enabled = true, onClick = {
                     navController.navigate("bookings")
@@ -218,7 +221,7 @@ fun DashboardClientScreen(
                     navController.navigate("profile")
                 })
             )
-        )
+        )*/
 
         // Avisos
         NoticesSection(
@@ -315,6 +318,9 @@ private fun HeroReserveCard(
     onReserve: () -> Unit,
     onBookings: () -> Unit
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val stack = fontScale >= 1.3f   // con texto grande, apilar
+
     ElevatedCard(shape = RoundedCornerShape(16.dp)) {
         Column(
             Modifier.padding(16.dp),
@@ -325,12 +331,42 @@ private fun HeroReserveCard(
                 "Reserva tu espacio en segundos. Elige centro, franja y ¡listo!",
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            if (stack) {
+                // Botones en columna (no se rompen)
                 Button(
                     onClick = onReserve,
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("Reservar ahora") }
-                TextButton(onClick = onBookings) { Text("Mis reservas") }
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Reservar ahora", maxLines = 1) }
+
+                TextButton(
+                    onClick = onBookings,
+                    modifier = Modifier.align(Alignment.Start)
+                ) {
+                    // Evita saltos “M is / reser / vas”
+                    Text(
+                        "Mis reservas",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                // Layout normal en fila
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = onReserve, shape = RoundedCornerShape(10.dp)) {
+                        Text("Reservar ahora", maxLines = 1)
+                    }
+                    TextButton(onClick = onBookings) {
+                        Text(
+                            "Mis reservas",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
@@ -392,14 +428,14 @@ private fun CenterCard(item: SuggestedCenter, onClick: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Button(
+            /*Button(
                 onClick = onClick,
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
             ) {
                 Text("Reservar")
-            }
+            }*/
         }
     }
 }
@@ -453,15 +489,33 @@ private fun NoticesSection(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("Avisos")
         if (notices.isEmpty()) {
-            OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
                 ListItem(
+                    leadingContent = {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
                     headlineContent = { Text("Sin avisos") },
                     supportingContent = { Text("¡Todo en orden!") }
                 )
             }
         } else {
             notices.forEach { n ->
-                NoticeRow(n, onPrimary, onDismiss)
+                NoticeRow(n, onPrimary, onDismiss) // tu implementación existente
             }
         }
     }
@@ -473,41 +527,75 @@ private fun NoticeRow(
     onPrimary: (ClientNotice) -> Unit,
     onDismiss: (String) -> Unit
 ) {
+    val fontScale = LocalConfiguration.current.fontScale
+    val compact = fontScale >= 1.3f   // con texto grande, compactar
+
     val (bg, fg) = when (item.severity) {
-        ClientNoticeSeverity.INFO -> MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) to MaterialTheme.colorScheme.primary
+        ClientNoticeSeverity.INFO    -> MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) to MaterialTheme.colorScheme.primary
         ClientNoticeSeverity.WARNING -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f) to MaterialTheme.colorScheme.tertiary
     }
 
     Surface(shape = RoundedCornerShape(16.dp), color = bg) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(fg.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.HelpOutline, contentDescription = null, tint = fg)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.title, style = MaterialTheme.typography.bodyLarge)
-                item.subtitle?.let {
-                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(fg.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Outlined.HelpOutline, contentDescription = null, tint = fg) }
+
+                Spacer(Modifier.width(12.dp))
+
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        item.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = if (compact) 2 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    item.subtitle?.let {
+                        Text(
+                            it,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = if (compact) 2 else 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // En modo normal, las acciones caben a la derecha
+                if (!compact) {
+                    if (!item.ctaLabel.isNullOrBlank()) {
+                        TextButton(onClick = { onPrimary(item) }) { Text(item.ctaLabel!!) }
+                    }
+                    TextButton(
+                        onClick = { onDismiss(item.id) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("Ocultar") }
                 }
             }
-            if (!item.ctaLabel.isNullOrBlank()) {
-                TextButton(onClick = { onPrimary(item) }) { Text(item.ctaLabel!!) }
+
+            // Con zoom grande, mueve las acciones a una segunda línea
+            if (compact) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!item.ctaLabel.isNullOrBlank()) {
+                        TextButton(onClick = { onPrimary(item) }) {
+                            Text(item.ctaLabel!!, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    TextButton(
+                        onClick = { onDismiss(item.id) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                    ) { Text("Ocultar", maxLines = 1) }
+                }
             }
-            TextButton(
-                onClick = { onDismiss(item.id) },
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-            ) { Text("Ocultar") }
         }
     }
 }
